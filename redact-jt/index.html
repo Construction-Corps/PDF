@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF Redaction</title>
+    <script src="https://mozilla.github.io/pdf.js/build/pdf.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/pdf-lib/dist/pdf-lib.min.js"></script>
+    <style>
+        canvas {
+            border: 1px solid black;
+        }
+    </style>
+</head>
+<body>
+    <input type="file" id="upload" accept="application/pdf">
+    <canvas id="pdfCanvas"></canvas>
+    <button id="download">Download Redacted PDF</button>
+
+    <script>
+        const pdfjsLib = window['pdfjs-dist/build/pdf'];
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://mozilla.github.io/pdf.js/build/pdf.worker.js';
+
+        const upload = document.getElementById('upload');
+        const canvas = document.getElementById('pdfCanvas');
+        const ctx = canvas.getContext('2d');
+        const redactionAreas = [
+            { page: 1, x: 100, y: 150, width: 200, height: 50 }, // Example area
+            { page: 2, x: 50, y: 100, width: 150, height: 50 }  // Another example
+        ];
+
+        upload.addEventListener('change', async (event) => {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = async (e) => {
+                    const typedArray = new Uint8Array(e.target.result);
+                    const pdfDoc = await pdfjsLib.getDocument(typedArray).promise;
+
+                    for (const area of redactionAreas) {
+                        const page = await pdfDoc.getPage(area.page);
+                        const viewport = page.getViewport({ scale: 1 });
+
+                        canvas.width = viewport.width;
+                        canvas.height = viewport.height;
+
+                        await page.render({ canvasContext: ctx, viewport }).promise;
+
+                        // Draw black rectangle for redaction
+                        ctx.fillStyle = 'black';
+                        ctx.fillRect(area.x, viewport.height - area.y, area.width, -area.height);
+                    }
+
+                    // Save the redacted PDF
+                    const pdfLibDoc = await PDFLib.PDFDocument.load(typedArray);
+                    for (const area of redactionAreas) {
+                        const page = pdfLibDoc.getPage(area.page - 1);
+                        page.drawRectangle({
+                            x: area.x,
+                            y: page.getHeight() - area.y,
+                            width: area.width,
+                            height: area.height,
+                            color: PDFLib.rgb(0, 0, 0),
+                        });
+                    }
+                    const pdfBytes = await pdfLibDoc.save();
+                    downloadPDF(pdfBytes);
+                };
+                reader.readAsArrayBuffer(file);
+            }
+        });
+
+        function downloadPDF(bytes) {
+            const blob = new Blob([bytes], { type: 'application/pdf' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'redacted.pdf';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        }
+    </script>
+</body>
+</html>
