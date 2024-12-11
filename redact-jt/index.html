@@ -3,19 +3,32 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PDF Redaction</title>
+    <title>PDF Redaction Tool</title>
     <script src="https://mozilla.github.io/pdf.js/build/pdf.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/pdf-lib/dist/pdf-lib.min.js"></script>
     <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+        }
         canvas {
             border: 1px solid black;
+            margin-top: 20px;
+        }
+        #spinner {
+            display: none;
+            margin-top: 20px;
+            font-size: 16px;
+            color: #555;
         }
     </style>
 </head>
 <body>
+    <h1>PDF Redaction Tool</h1>
     <input type="file" id="upload" accept="application/pdf">
+    <div id="spinner">Loading PDF, please wait...</div>
     <canvas id="pdfCanvas"></canvas>
-    <button id="download">Download Redacted PDF</button>
+    <button id="download" disabled>Download Redacted PDF</button>
 
     <script>
         const pdfjsLib = window['pdfjs-dist/build/pdf'];
@@ -24,62 +37,89 @@
         const upload = document.getElementById('upload');
         const canvas = document.getElementById('pdfCanvas');
         const ctx = canvas.getContext('2d');
+        const downloadBtn = document.getElementById('download');
+        const spinner = document.getElementById('spinner');
+        let originalPdfBytes = null;
+
         const redactionAreas = [
             { page: 1, x: 100, y: 150, width: 200, height: 50 }, // Example area
-            { page: 2, x: 50, y: 100, width: 150, height: 50 }  // Another example
+            { page: 1, x: 50, y: 200, width: 100, height: 30 }  // Another example
         ];
 
-        upload.addEventListener('change', async (event) => {
-            const file = event.target.files[0];
-            if (file) {
+        async function renderPdf(file) {
+            try {
+                spinner.style.display = 'block'; // Show spinner
                 const reader = new FileReader();
                 reader.onload = async (e) => {
-                    const typedArray = new Uint8Array(e.target.result);
-                    const pdfDoc = await pdfjsLib.getDocument(typedArray).promise;
+                    originalPdfBytes = new Uint8Array(e.target.result);
+                    const pdfDoc = await pdfjsLib.getDocument(originalPdfBytes).promise;
 
-                    for (const area of redactionAreas) {
-                        const page = await pdfDoc.getPage(area.page);
-                        const viewport = page.getViewport({ scale: 1 });
+                    // Render first page
+                    const page = await pdfDoc.getPage(1);
+                    const viewport = page.getViewport({ scale: 1 });
 
-                        canvas.width = viewport.width;
-                        canvas.height = viewport.height;
+                    canvas.width = viewport.width;
+                    canvas.height = viewport.height;
 
-                        await page.render({ canvasContext: ctx, viewport }).promise;
+                    await page.render({ canvasContext: ctx, viewport }).promise;
 
-                        // Draw black rectangle for redaction
-                        ctx.fillStyle = 'black';
-                        ctx.fillRect(area.x, viewport.height - area.y, area.width, -area.height);
-                    }
+                    // Overlay redaction boxes
+                    redactionAreas.forEach((area) => {
+                        if (area.page === 1) { // Only draw redactions for the current page
+                            ctx.fillStyle = 'black';
+                            ctx.fillRect(area.x, viewport.height - area.y, area.width, -area.height);
+                        }
+                    });
 
-                    // Save the redacted PDF
-                    const pdfLibDoc = await PDFLib.PDFDocument.load(typedArray);
-                    for (const area of redactionAreas) {
-                        const page = pdfLibDoc.getPage(area.page - 1);
-                        page.drawRectangle({
-                            x: area.x,
-                            y: page.getHeight() - area.y,
-                            width: area.width,
-                            height: area.height,
-                            color: PDFLib.rgb(0, 0, 0),
-                        });
-                    }
-                    const pdfBytes = await pdfLibDoc.save();
-                    downloadPDF(pdfBytes);
+                    // Enable download button
+                    downloadBtn.disabled = false;
                 };
                 reader.readAsArrayBuffer(file);
+            } catch (error) {
+                alert('Failed to load PDF. Please try again.');
+                console.error(error);
+            } finally {
+                spinner.style.display = 'none'; // Hide spinner
             }
+        }
+
+        async function downloadRedactedPdf() {
+            try {
+                if (!originalPdfBytes) throw new Error("No PDF loaded");
+
+                const pdfLibDoc = await PDFLib.PDFDocument.load(originalPdfBytes);
+                redactionAreas.forEach((area) => {
+                    const page = pdfLibDoc.getPage(area.page - 1);
+                    page.drawRectangle({
+                        x: area.x,
+                        y: page.getHeight() - area.y,
+                        width: area.width,
+                        height: area.height,
+                        color: PDFLib.rgb(0, 0, 0),
+                    });
+                });
+
+                const pdfBytes = await pdfLibDoc.save();
+                const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+                const url = URL.createObjectURL(blob);
+
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'redacted.pdf';
+                a.click();
+            } catch (error) {
+                alert('Failed to download redacted PDF. Please try again.');
+                console.error(error);
+            }
+        }
+
+        // Event listeners
+        upload.addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (file) renderPdf(file);
         });
 
-        function downloadPDF(bytes) {
-            const blob = new Blob([bytes], { type: 'application/pdf' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = 'redacted.pdf';
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-        }
+        downloadBtn.addEventListener('click', downloadRedactedPdf);
     </script>
 </body>
 </html>
