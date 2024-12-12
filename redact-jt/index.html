@@ -69,14 +69,14 @@
                         // Search for "TOTAL" in text content
                         textContent.items.forEach((item) => {
                             if (item.str.includes("TOTAL")) {
-                                const [x, y] = item.transform; // Extract only x and y coordinates
+                                const [x, y, , , width, height] = item.transform;
 
-                                // Set a fixed-size redaction box
+                                // Redact entire line dynamically
                                 const redactionBox = {
-                                    x: x, // Use the detected x coordinate for the start of the box
-                                    y: viewport.height - y - 50, // Adjust for canvas coordinates and fixed height
-                                    width: 100, // Fixed width of 100px
-                                    height: 50, // Fixed height of 50px
+                                    x: x,
+                                    y: viewport.height - y,
+                                    width: viewport.width - x, // Extend to end of line
+                                    height: Math.abs(height),
                                 };
 
                                 // Draw redaction on canvas
