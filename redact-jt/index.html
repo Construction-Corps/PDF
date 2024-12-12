@@ -71,8 +71,6 @@
                             if (item.str.includes("TOTAL")) {
                                 const [x, y, , , width, height] = item.transform;
 
-                                console.log({x, y, , , width, height},viewport.height,viewport.width,Math.abs(height))
-
                                 // Redact entire line dynamically
                                 const redactionBox = {
                                     x: x,
