@@ -4,88 +4,98 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PDF Redaction Tool</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/pdf-lib/dist/pdf-lib.min.js"></script>
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            padding: 20px;
-        }
-        canvas {
-            border: 1px solid black;
+        #pdfCanvas {
+            border: 1px solid #dee2e6;
             margin-top: 20px;
+            max-width: 100%;
         }
         #spinner {
             display: none;
-            margin-top: 20px;
-            font-size: 16px;
-            color: #555;
         }
     </style>
 </head>
 <body>
-    <h1>PDF Redaction Tool</h1>
-    <input type="file" id="upload" accept="application/pdf">
-    <div id="spinner">Processing PDF, please wait...</div>
-    <canvas id="pdfCanvas"></canvas>
-    <button id="download" disabled>Download Redacted PDF</button>
+    <div class="container py-5">
+        <h1 class="text-center mb-4">PDF Redaction Tool</h1>
+
+        <div class="row justify-content-center">
+            <div class="col-md-6 text-center">
+                <label for="upload" class="form-label">Upload PDF File</label>
+                <input type="file" id="upload" class="form-control mb-3" accept="application/pdf">
+                <div id="spinner" class="text-muted">Processing PDF, please wait...</div>
+            </div>
+        </div>
+
+        <div class="row justify-content-center">
+            <div class="col-md-8">
+                <canvas id="pdfCanvas" class="w-100"></canvas>
+            </div>
+        </div>
+
+        <div class="row justify-content-center mt-4">
+            <div class="col-md-6 text-center">
+                <button id="download" class="btn btn-primary" disabled>Download Redacted PDF</button>
+            </div>
+        </div>
+    </div>
 
     <script>
-        const pdfjsLib = window['pdfjs-dist/build/pdf'];
-        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+    const pdfjsLib = window['pdfjs-dist/build/pdf'];
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
 
-        const upload = document.getElementById('upload');
-        const canvas = document.getElementById('pdfCanvas');
-        const ctx = canvas.getContext('2d');
-        const spinner = document.getElementById('spinner');
-        const downloadBtn = document.getElementById('download');
-        let originalPdfBytes = null;
+    const upload = document.getElementById('upload');
+    const spinner = document.getElementById('spinner');
+    const downloadBtn = document.getElementById('download');
+    const container = document.querySelector('.container');
+    let originalPdfBytes = null;
 
-        async function extractAndRedactPdf(file) {
-            try {
-                spinner.style.display = 'block';
-                downloadBtn.disabled = true;
+    async function extractAndRedactPdf(file) {
+        try {
+            spinner.style.display = 'block';
+            downloadBtn.disabled = true;
 
-                const reader = new FileReader();
-                reader.onload = async (e) => {
-                    originalPdfBytes = new Uint8Array(e.target.result);
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                originalPdfBytes = new Uint8Array(e.target.result);
 
-                    const pdfDoc = await pdfjsLib.getDocument(originalPdfBytes).promise;
-                    const pdfLibDoc = await PDFLib.PDFDocument.load(originalPdfBytes);
+                const pdfDoc = await pdfjsLib.getDocument(originalPdfBytes).promise;
+                const pdfLibDoc = await PDFLib.PDFDocument.load(originalPdfBytes);
 
-                    const numPages = pdfDoc.numPages;
-                    for (let pageNumber = 1; pageNumber <= numPages; pageNumber++) {
-                        const page = await pdfDoc.getPage(pageNumber);
+                const numPages = pdfDoc.numPages;
+                let redactionDone = false;
+
+                for (let pageNumber = 1; pageNumber <= numPages; pageNumber++) {
+                    const page = await pdfDoc.getPage(pageNumber);
+                    const viewport = page.getViewport({ scale: 1 });
+
+                    const canvas = document.createElement('canvas');
+                    canvas.width = viewport.width;
+                    canvas.height = viewport.height;
+                    canvas.style.border = '1px solid #dee2e6';
+                    canvas.style.marginTop = '20px';
+                    container.appendChild(canvas);
+
+                    const ctx = canvas.getContext('2d');
+                    await page.render({ canvasContext: ctx, viewport }).promise;
+
+                    if (!redactionDone) {
                         const textContent = await page.getTextContent();
-                        const viewport = page.getViewport({ scale: 1 });
-
-                        // Render page on canvas
-                        if (pageNumber === 1) {
-                            canvas.width = viewport.width;
-                            canvas.height = viewport.height;
-                            await page.render({ canvasContext: ctx, viewport }).promise;
-                        }
-
-                        // Search for "TOTAL" in text content
                         textContent.items.forEach((item) => {
-                            if (item.str.includes("TOTAL")) {
-                                const [x, y, , , width, height] = item.transform;
-
-                                // console.log({x, y, , , width, height})
-
-                                // Redact entire line dynamically
+                            if (!redactionDone && item.str.includes("TOTAL")) {
                                 const redactionBox = {
-                                    x: x,
-                                    y: viewport.height - y,
-                                    width: viewport.width - x, // Extend to end of line
-                                    height: Math.abs(height),
+                                    x: 460,
+                                    y: viewport.height - item.transform[5] + 2,
+                                    width: 116,
+                                    height: 15,
                                 };
 
-                                // Draw redaction on canvas
                                 ctx.fillStyle = 'black';
                                 ctx.fillRect(redactionBox.x, redactionBox.y, redactionBox.width, -redactionBox.height);
 
-                                // Apply redaction to PDF using PDF-Lib
                                 const pdfPage = pdfLibDoc.getPage(pageNumber - 1);
                                 pdfPage.drawRectangle({
                                     x: redactionBox.x,
@@ -94,38 +104,42 @@
                                     height: redactionBox.height,
                                     color: PDFLib.rgb(0, 0, 0),
                                 });
+
+                                redactionDone = true;
                             }
                         });
                     }
+                }
 
-                    // Enable download button
-                    const pdfBytes = await pdfLibDoc.save();
-                    const blob = new Blob([pdfBytes], { type: 'application/pdf' });
-                    const url = URL.createObjectURL(blob);
+                const pdfBytes = await pdfLibDoc.save();
+                const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+                const url = URL.createObjectURL(blob);
 
-                    downloadBtn.addEventListener('click', () => {
-                        const a = document.createElement('a');
-                        a.href = url;
-                        a.download = 'redacted.pdf';
-                        a.click();
-                    });
+                downloadBtn.addEventListener('click', () => {
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'redacted.pdf';
+                    a.click();
+                });
 
-                    downloadBtn.disabled = false;
-                };
-                reader.readAsArrayBuffer(file);
-            } catch (error) {
-                alert('Error processing PDF. Please ensure the file is valid.');
-                console.error(error);
-            } finally {
-                spinner.style.display = 'none';
-            }
+                downloadBtn.disabled = false;
+            };
+            reader.readAsArrayBuffer(file);
+        } catch (error) {
+            alert('Error processing PDF. Please ensure the file is valid.');
+            console.error(error);
+        } finally {
+            spinner.style.display = 'none';
         }
+    }
 
-        // Event listeners
-        upload.addEventListener('change', (event) => {
-            const file = event.target.files[0];
-            if (file) extractAndRedactPdf(file);
-        });
-    </script>
+    upload.addEventListener('change', (event) => {
+        const file = event.target.files[0];
+        if (file) extractAndRedactPdf(file);
+    });
+</script>
+
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
