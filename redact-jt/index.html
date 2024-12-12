@@ -67,20 +67,21 @@
                         }
 
                         // Search for "TOTAL" in text content
-                        const targetText = "TOTAL";
                         textContent.items.forEach((item) => {
-                            if (item.str.includes(targetText)) {
-                                const { x, y, width, height } = item.transform;
+                            if (item.str.includes("TOTAL")) {
+                                const [x, y, , , width, height] = item.transform;
+
+                                // Redact entire line dynamically
                                 const redactionBox = {
                                     x: x,
-                                    y: viewport.height - y, // Adjust Y axis for canvas coordinates
-                                    width: width * item.str.length,
-                                    height: height,
+                                    y: viewport.height - y,
+                                    width: viewport.width - x, // Extend to end of line
+                                    height: Math.abs(height),
                                 };
 
                                 // Draw redaction on canvas
                                 ctx.fillStyle = 'black';
-                                ctx.fillRect(redactionBox.x, redactionBox.y, redactionBox.width, redactionBox.height);
+                                ctx.fillRect(redactionBox.x, redactionBox.y, redactionBox.width, -redactionBox.height);
 
                                 // Apply redaction to PDF using PDF-Lib
                                 const pdfPage = pdfLibDoc.getPage(pageNumber - 1);
