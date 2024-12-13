@@ -20,24 +20,24 @@
 </head>
 <body>
     <div class="container py-5">
-        <h1 class="text-center mb-4">PDF Redaction Tool</h1>
+        <h1 class="text-center mb-4">JobTread Proposal PDF Redaction Tool</h1>
 
         <div class="row justify-content-center">
             <div class="col-md-6 text-center">
-                <label for="upload" class="form-label">Upload PDF File</label>
+                
+                              <label for="upload" class="form-label">Step #1 Upload PDF File</label>
+
                 <input type="file" id="upload" class="form-control mb-3" accept="application/pdf">
-                <div id="spinner" class="text-muted">Processing PDF, please wait...</div>
+                <div id="spinner" class="text-muted">Processing PDF, please wait...</div> 
             </div>
         </div>
 
-        <div class="row justify-content-center">
-            <div class="col-md-8">
-                <canvas id="pdfCanvas" class="w-100"></canvas>
-            </div>
-        </div>
+        
 
         <div class="row justify-content-center mt-4">
             <div class="col-md-6 text-center">
+              <label for="upload" class="form-label">Step #2 after it loads download File</label>
+              <br/>
                 <button id="download" class="btn btn-primary" disabled>Download Redacted PDF</button>
             </div>
         </div>
@@ -82,37 +82,47 @@
                     const ctx = canvas.getContext('2d');
                     await page.render({ canvasContext: ctx, viewport }).promise;
 
-                    if (!redactionDone) {
-                        const textContent = await page.getTextContent();
-                        textContent.items.forEach((item) => {
-                            if (!redactionDone && item.str.includes("TOTAL")) {
-                                const redactionBox = {
-                                    x: 460,
-                                    y: viewport.height - item.transform[5] + 2,
-                                    width: 116,
-                                    height: 15,
-                                };
+                    const textContent = await page.getTextContent();
+textContent.items.forEach((item) => {
+    if (!redactionDone && item.str.includes("TOTAL")) {
+        // Get item's x and y from transform
+        const x = item.transform[4];
+        const y = item.transform[5];
 
-                                ctx.fillStyle = 'black';
-                                ctx.fillRect(redactionBox.x, redactionBox.y, redactionBox.width, -redactionBox.height);
+        // Calculate redaction box for canvas (UI)
+        const redactionBox = {
+            x: x,
+            y: viewport.height - y - 15, // Flip for canvas
+            width: 116,
+            height: 17,
+        };
 
-                                const pdfPage = pdfLibDoc.getPage(pageNumber - 1);
-                                pdfPage.drawRectangle({
-                                    x: redactionBox.x,
-                                    y: pdfPage.getHeight() - redactionBox.y - redactionBox.height,
-                                    width: redactionBox.width,
-                                    height: redactionBox.height,
-                                    color: PDFLib.rgb(0, 0, 0),
-                                });
+        // Render the redaction box on the canvas
+        ctx.fillStyle = 'white';
+        ctx.fillRect(redactionBox.x, redactionBox.y, redactionBox.width, redactionBox.height);
 
-                                redactionDone = true;
-                            }
-                        });
-                    }
+        // Map viewport coordinates to actual PDF page size
+        const pdfPage = pdfLibDoc.getPage(pageNumber - 1);
+        const scaleFactorX = pdfPage.getWidth() / viewport.width;
+        const scaleFactorY = pdfPage.getHeight() / viewport.height;
+
+        pdfPage.drawRectangle({
+            x: redactionBox.x * scaleFactorX,
+            y: (viewport.height - redactionBox.y - redactionBox.height) * scaleFactorY,
+            width: redactionBox.width * scaleFactorX,
+            height: redactionBox.height * scaleFactorY,
+            color: PDFLib.rgb(1, 1, 1),
+        });
+
+        redactionDone = true; // Ensure only one redaction
+    }
+});
+
+                    
                 }
 
                 const pdfBytes = await pdfLibDoc.save();
-                const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+                const blob = new Blob([pdfBytes], { type: 'application/pdf' }); 
                 const url = URL.createObjectURL(blob);
 
                 downloadBtn.addEventListener('click', () => {
@@ -132,11 +142,29 @@
             spinner.style.display = 'none';
         }
     }
-
-    upload.addEventListener('change', (event) => {
+      
+      
+      
+      upload.addEventListener('change', (event) => {
         const file = event.target.files[0];
-        if (file) extractAndRedactPdf(file);
+
+        if (file) {
+            // Clear previous PDF render
+            document.querySelectorAll('canvas').forEach(canvas => canvas.remove());
+
+            // Reset related variables
+            originalPdfBytes = null;
+            downloadBtn.disabled = true;
+
+            // Process the new PDF
+            extractAndRedactPdf(file); 
+        }
     });
+
+    // upload.addEventListener('change', (event) => {
+    //     const file = event.target.files[0];
+    //     if (file) extractAndRedactPdf(file);
+    // });
 </script>
 
 
