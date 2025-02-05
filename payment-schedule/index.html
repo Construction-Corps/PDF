@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dynamic Form</title>
+    <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cleave.js/1.6.0/cleave.min.js"></script>
+    <style>
+        .form-row {
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container mt-5">
+        <h2>Payment Breakdown</h2>
+        <form id="paymentForm">
+            <div class="form-group">
+                <label for="totalAmount">Total Amount</label>
+                <input type="text" class="form-control" id="totalAmount" placeholder="Enter total amount" required>
+            </div>
+            <div id="rowsContainer">
+                <!-- Default Row 1: Deposit -->
+                <div class="form-row">
+                    <div class="col">
+                        <label for="paymentPhase" class="form-label small">Phase</label>
+                        <input type="text" class="form-control phase-input" value="Deposit" placeholder="Payment Phase" required>
+                    </div>
+                    <div class="col">
+                        <label for="percentage" class="form-label small">Percentage</label>
+                        <input type="number" class="form-control" value="50" placeholder="Percentage" required>
+                    </div>
+                    <div class="col">
+                        <label for="dueText" class="form-label small">Due Text</label>
+                        <!-- If the user does not change this value, the placeholder will be used instead -->
+                        <input type="text" class="form-control due-text-input" value="Due upon acceptance" placeholder="Due Text" required>
+                    </div>
+                    <div class="col">
+                        <button type="button" class="btn btn-success add-row">+</button>
+                    </div>
+                </div>
+
+                <!-- Default Row 2: Project Complete -->
+                <div class="form-row project-complete">
+                    <div class="col">
+                        <input type="text" class="form-control phase-input" value="Project Complete" placeholder="Phase Name" required>
+                    </div>
+                    <div class="col">
+                        <input type="number" class="form-control" value="50" placeholder="Percentage" required>
+                    </div>
+                    <div class="col">
+                        <input type="text" class="form-control due-text-input" value="When project is complete" placeholder="Due upon" required>
+                    </div>
+                    <div class="col">
+                        <button type="button" class="btn btn-danger remove-row">-</button>
+                    </div>
+                </div>
+            </div>
+            <div id="totalPercentage" class="mt-2"></div>
+            <button type="submit" class="btn btn-primary mt-3">Calculate</button>
+            <button type="button" class="btn btn-success add-row mt-3">Add Row</button>
+        </form>
+        <div id="output" class="mt-4"></div>
+        <!-- Copy button with a Feather copy icon -->
+        <button type="button" id="copyButton" class="btn btn-secondary mt-3">
+            <i data-feather="copy"></i> Copy
+        </button>
+    </div>
+
+    <!-- Toast container (positioned fixed at bottom-right) -->
+    <div id="toastContainer" style="position: fixed; bottom: 20px; right: 20px; z-index: 9999;"></div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const rowsContainer = document.getElementById('rowsContainer');
+            const paymentForm = document.getElementById('paymentForm');
+            const output = document.getElementById('output');
+            const totalPercentageDisplay = document.getElementById('totalPercentage');
+            const copyButton = document.getElementById('copyButton');
+
+            // Attach event listeners on all phase inputs (initial rows)
+            document.querySelectorAll('.phase-input').forEach(input => {
+                input.addEventListener('input', updateDuePlaceholder);
+            });
+
+            // Add listener for percentage inputs on the initial row
+            const firstRowPercentageInput = rowsContainer.querySelector('.form-row input[type="number"]');
+            firstRowPercentageInput.addEventListener('input', adjustPercentages);
+
+            paymentForm.addEventListener('click', function(event) {
+                if (event.target.classList.contains('add-row')) {
+                    addRow();
+                } else if (event.target.classList.contains('remove-row')) {
+                    event.target.closest('.form-row').remove();
+                    adjustPercentages();
+                }
+            });
+
+            paymentForm.addEventListener('submit', function(event) {
+                event.preventDefault();
+                if (validatePercentages()) {
+                    calculatePayments();
+                } else {
+                    showToast('The total percentage must equal 100%.');
+                }
+            });
+
+            function addRow() {
+                const newRow = document.createElement('div');
+                newRow.classList.add('form-row');
+                newRow.innerHTML = `
+                    <div class="col">
+                        <input type="text" class="form-control phase-input" placeholder="Phase Name" required>
+                    </div>
+                    <div class="col">
+                        <input type="number" class="form-control" placeholder="Percentage" required>
+                    </div>
+                    <div class="col">
+                        <input type="text" class="form-control due-text-input" placeholder="Due upon">
+                    </div>
+                    <div class="col">
+                        <button type="button" class="btn btn-danger remove-row">-</button>
+                    </div>
+                `;
+                
+                // Insert the new row before the project complete row if it exists,
+                // otherwise append it at the end.
+                const projectCompleteRow = rowsContainer.querySelector('.project-complete');
+                if (projectCompleteRow) {
+                    rowsContainer.insertBefore(newRow, projectCompleteRow);
+                } else {
+                    rowsContainer.appendChild(newRow);
+                }
+                
+                // Attach event listeners to new row fields:
+                newRow.querySelector('input[type="number"]').addEventListener('input', adjustPercentages);
+                newRow.querySelector('.phase-input').addEventListener('input', updateDuePlaceholder);
+                adjustPercentages();
+            }
+
+            // Update the corresponding Due Text placeholder based on the phase input,
+            // but do not override any manually entered due text.
+            function updateDuePlaceholder(event) {
+                const phaseInput = event.target;
+                const row = phaseInput.closest('.form-row');
+                const dueInput = row.querySelector('.due-text-input');
+                // Only update placeholder if the due text field is empty (no manual entry)
+                if (dueInput.value.trim() === '') {
+                    dueInput.placeholder = 'Due upon ' + phaseInput.value + ' commencement';
+                }
+            }
+
+            function adjustPercentages() {
+                const rows = rowsContainer.querySelectorAll('.form-row');
+                let sumPercentages = 0;
+
+                rows.forEach(row => {
+                    const percentageInput = row.querySelector('input[type="number"]');
+                    const percentageValue = parseFloat(percentageInput.value) || 0;
+                    sumPercentages += percentageValue;
+                });
+
+                totalPercentageDisplay.textContent = `Total Percentage: ${sumPercentages}%`;
+            }
+
+            function validatePercentages() {
+                const rows = rowsContainer.querySelectorAll('.form-row');
+                const percentages = Array.from(rows).map(row => parseFloat(row.querySelector('input[type="number"]').value) || 0);
+                const sumPercentages = percentages.reduce((a, b) => a + b, 0);
+                return sumPercentages === 100;
+            }
+
+            function calculatePayments() {
+                const totalAmountStr = document.getElementById('totalAmount').value;
+                const totalAmount = parseFloat(totalAmountStr.replace(/[$,]/g, ''));
+                const rows = rowsContainer.querySelectorAll('.form-row');
+                let outputHtml = '';
+
+                rows.forEach(row => {
+                    const phaseInput = row.querySelector('.phase-input');
+                    const dueTextInput = row.querySelector('.due-text-input');
+                    const percentageInput = row.querySelector('input[type="number"]');
+                    
+                    const phaseName = phaseInput.value;
+                    // Use the input value if provided; otherwise, use the placeholder text.
+                    const dueText = dueTextInput.value.trim() !== '' ? dueTextInput.value : dueTextInput.placeholder;
+                    const percentage = parseFloat(percentageInput.value);
+                    const amount = (percentage / 100) * totalAmount;
+
+                    outputHtml += `<p>${percentage}% ${phaseName} = $${amount.toFixed(2)} (${dueText})</p>`;
+                });
+
+                output.innerHTML = outputHtml;
+            }
+
+            // Initialize Cleave.js for currency formatting
+            new Cleave('#totalAmount', {
+                numeral: true,
+                numeralThousandsGroupStyle: 'thousand',
+                prefix: '$',
+                numeralDecimalScale: 2,
+                numeralPositiveOnly: true
+            });
+
+            // Copy button functionality
+            copyButton.addEventListener('click', function() {
+                const textToCopy = output.innerText;
+                navigator.clipboard.writeText(textToCopy)
+                    .then(function() {
+                        showToast('Copied to clipboard!');
+                    })
+                    .catch(function(err) {
+                        console.error('Error in copying text: ', err);
+                        showToast('Error copying to clipboard.');
+                    });
+            });
+
+            // Custom toast function to display messages
+            function showToast(message, duration = 3000) {
+                const toastContainer = document.getElementById('toastContainer');
+                if (!toastContainer) return;
+                const toast = document.createElement('div');
+                toast.className = 'toast';
+                toast.textContent = message;
+
+                // Basic toast styling
+                toast.style.minWidth = '200px';
+                toast.style.padding = '10px 20px';
+                toast.style.backgroundColor = '#333';
+                toast.style.color = '#fff';
+                toast.style.borderRadius = '5px';
+                toast.style.opacity = '0.9';
+                toast.style.marginBottom = '10px';
+
+                toastContainer.appendChild(toast);
+                setTimeout(() => {
+                    toast.remove();
+                }, duration);
+            }
+        });
+    </script>
+    <!-- Include Feather Icons script -->
+    <script src="https://unpkg.com/feather-icons"></script>
+    <script>
+        feather.replace();
+    </script>
+</body>
+</html>
