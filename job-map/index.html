@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Job Map</title>
+  <style>
+    /* Simple styling for the jobs list */
+    #jobsList div {
+      padding: 8px;
+      border-bottom: 1px solid #ddd;
+    }
+  </style>
+</head>
+<body>
+  <h1>Job List</h1>
+  <div id="jobsList">
+    <!-- Job items will be inserted here -->
+  </div>
+
+  <script>
+    // Set your API endpoint, grant key, and organization ID
+    const apiEndpoint = "https://api.jobtread.com/pave";
+    const grantKey = "YOUR_GRANT_KEY_HERE"; // Replace with your actual grant key
+    const organizationId = "22NwWhUAf6VB";    // Replace with your organization's ID
+
+    // Define a Pave query that gets the organization's jobs.
+    // (Assuming the organization type has a 'jobs' connection field.)
+    const query = {
+      "query": {
+        "$": { "grantKey": grantKey },
+        "organization": {
+          "$": { "id": organizationId },
+          "id": {},
+          "jobs": {
+            "nextPage": {},
+            "nodes": {
+              "id": {},
+              "name": {},
+              "number": {}
+            }
+          }
+        }
+      }
+    };
+
+    // Issue the POST request using fetch
+    fetch(apiEndpoint, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(query)
+    })
+    .then(response => response.json())
+    .then(data => {
+      // Extract job nodes from the response.
+      // In this query, the jobs should be listed under organization.jobs.nodes.
+      const jobsList = data.organization && data.organization.jobs && data.organization.jobs.nodes;
+      const jobsContainer = document.getElementById("jobsList");
+      
+      // Check if we received any job nodes
+      if (jobsList && jobsList.length > 0) {
+        jobsList.forEach(job => {
+          const jobDiv = document.createElement("div");
+          jobDiv.textContent = `Job: ${job.name} (ID: ${job.id}, Number: ${job.number})`;
+          jobsContainer.appendChild(jobDiv);
+        });
+      } else {
+        jobsContainer.textContent = "No jobs found.";
+      }
+    })
+    .catch(error => {
+      console.error("Error fetching jobs:", error);
+      document.getElementById("jobsList").textContent = "Error loading jobs.";
+    });
+  </script>
+</body>
+</html>
