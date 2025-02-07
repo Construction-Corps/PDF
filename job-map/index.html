@@ -16,15 +16,14 @@
   <div id="jobsList">
     <!-- Job items will be inserted here -->
   </div>
-
+  
   <script>
-    // Set your API endpoint, grant key, and organization ID
-    const apiEndpoint = "https://api.jobtread.com/pave";
-    const grantKey = "22SkCV5JXCtY6eKk5w2ZWBsyhpBBrr6Lea"; // Replace with your actual grant key
-    const organizationId = "22NwWhUAf6VB";    // Replace with your organization's ID
-
+    // Use the production Django proxy endpoint
+    const proxyEndpoint = "http://127.0.0.1:8000/actions/api/jobtread-proxy/";
+    const grantKey = "22SkCV5JXCtY6eKk5w2ZWBsyhpBBrr6Lea";
+    const organizationId = "22NwWhUAf6VB";
+    
     // Define a Pave query that gets the organization's jobs.
-    // (Assuming the organization type has a 'jobs' connection field.)
     const query = {
       "query": {
         "$": { "grantKey": grantKey },
@@ -33,18 +32,76 @@
           "id": {},
           "jobs": {
             "nextPage": {},
+            $:{
+              "size": 100,
+              "with": {
+                "cf": {
+                  "_": "customFieldValues",
+                  "$": {
+                    "where": [
+                    [
+                    "customField",
+                    "id"
+                    ],
+                    "22NwzQcjYUA4"
+                    ]
+                  },
+                  "values": {
+                    "$": {
+                      "field": "value"
+                    }
+                  }
+                }
+              },
+              "where": {
+                "and": [
+                ["closedOn","=",null],
+                {
+                  "or": [
+                  [["cf", "values"], "=", "Job Started"],
+                  [["cf", "values"], "=", "Job Mid Way"],
+                  [["cf", "values"], "=", "Job Complete"],
+                  [["cf", "values"], "=", "Design Sold"],
+                  [["cf", "values"], "=", "SELL THE PROJECT!!!"],
+                  [["cf", "values"], "=", "At Cost"]                                  
+                  ] 
+                }
+                ]
+              }
+            },
             "nodes": {
               "id": {},
               "name": {},
-              "number": {}
+              "location": {
+                "city": {},
+                "street": {},
+                "state": {},
+                "postalCode": {},
+                "id": {}
+              },
+              "createdAt": {},
+              "customFieldValues": {
+                "nodes": {
+                  "id": {},
+                  "value": {},
+                  // todo this works but when I add this one below it breaks 
+                  // the query becuase it's too large I need to figure out 
+                  // how to only include some custom fields and not all of them.
+                  // "customField": {
+                  //   "name": {},
+                  //   "id": {}
+                  // }
+                  
+                }
+              }
             }
           }
         }
       }
     };
-
-    // Issue the POST request using fetch
-    fetch(apiEndpoint, {
+    
+    // Issue the POST request using fetch to your Django proxy endpoint
+    fetch(proxyEndpoint, {
       method: "POST",
       headers: {
         "Content-Type": "application/json"
@@ -54,16 +111,15 @@
     .then(response => response.json())
     .then(data => {
       // Extract job nodes from the response.
-      // In this query, the jobs should be listed under organization.jobs.nodes.
       const jobsList = data.organization && data.organization.jobs && data.organization.jobs.nodes;
       const jobsContainer = document.getElementById("jobsList");
       
-      // Check if we received any job nodes
       if (jobsList && jobsList.length > 0) {
         jobsList.forEach(job => {
           const jobDiv = document.createElement("div");
-          jobDiv.textContent = `Job: ${job.name} (ID: ${job.id}, Number: ${job.number})`;
+          jobDiv.textContent = `Job: ${job.name} (ID: ${job.id}, City: ${job.location.city})`;
           jobsContainer.appendChild(jobDiv);
+
         });
       } else {
         jobsContainer.textContent = "No jobs found.";
