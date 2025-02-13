@@ -177,18 +177,25 @@
                 const rows = rowsContainer.querySelectorAll('.form-row');
                 let outputHtml = '';
 
+                // Create a number formatter for US currency
+                const formatter = new Intl.NumberFormat('en-US', {
+                    style: 'currency',
+                    currency: 'USD',
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2
+                });
+
                 rows.forEach(row => {
-                    const phaseInput = row.querySelector('.phase-input');
-                    const dueTextInput = row.querySelector('.due-text-input');
-                    const percentageInput = row.querySelector('input[type="number"]');
+                    const phaseInput = row.closest('.form-row').querySelector('.phase-input');
+                    const dueTextInput = row.closest('.form-row').querySelector('.due-text-input');
+                    const percentageInput = row.closest('.form-row').querySelector('input[type="number"]');
                     
                     const phaseName = phaseInput.value;
-                    // Use the input value if provided; otherwise, use the placeholder text.
                     const dueText = dueTextInput.value.trim() !== '' ? dueTextInput.value : dueTextInput.placeholder;
                     const percentage = parseFloat(percentageInput.value);
                     const amount = (percentage / 100) * totalAmount;
 
-                    outputHtml += `<p>${percentage}% ${phaseName} = $${amount.toFixed(2)} (${dueText})</p>`;
+                    outputHtml += `<p>${percentage}% ${phaseName} = ${formatter.format(amount)} (${dueText})</p>`;
                 });
 
                 output.innerHTML = outputHtml;
