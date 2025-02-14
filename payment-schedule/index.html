@@ -81,7 +81,7 @@
 
             // Attach event listeners on all phase inputs (initial rows)
             document.querySelectorAll('.phase-input').forEach(input => {
-                input.addEventListener('input', updateDuePlaceholder);
+                input.addEventListener('onB', updateDuePlaceholder);
             });
 
             // Add listener for percentage inputs on the initial row
@@ -146,7 +146,7 @@
                 const row = phaseInput.closest('.form-row');
                 const dueInput = row.querySelector('.due-text-input');
                 // Only update placeholder if the due text field is empty (no manual entry)
-                if (dueInput.value.trim() === '' || dueInput.value === 'Due upon ' + phaseInput.value + ' commencement') {
+                if (dueInput.value.trim() === '' || dueInput.value.includes('Due upon ') && dueInput.value.includes('commencement')) {
                     dueInput.value = 'Due upon ' + phaseInput.value + ' commencement';
                 }
             }
