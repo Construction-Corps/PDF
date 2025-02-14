@@ -146,8 +146,8 @@
                 const row = phaseInput.closest('.form-row');
                 const dueInput = row.querySelector('.due-text-input');
                 // Only update placeholder if the due text field is empty (no manual entry)
-                if (dueInput.value.trim() === '') {
-                    dueInput.placeholder = 'Due upon ' + phaseInput.value + ' commencement';
+                if (dueInput.value.trim() === '' || dueInput.value === 'Due upon ' + phaseInput.value + ' commencement') {
+                    dueInput.value = 'Due upon ' + phaseInput.value + ' commencement';
                 }
             }
 
