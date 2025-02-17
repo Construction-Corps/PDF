@@ -88,7 +88,7 @@
           "jobs": {
             "nextPage": {},
             $:{
-              "size": 100,
+              "size": 75,
               "with": {
                 "cf": {
                   "_": "customFieldValues",
@@ -137,15 +137,15 @@
               "createdAt": {},
               "customFieldValues": {
                 "nodes": {
-                  "id": {},
+                  // "id": {},
                   "value": {},
                   // todo this works but when I add this one below it breaks 
                   // the query becuase it's too large I need to figure out 
                   // how to only include some custom fields and not all of them.
-                  // "customField": {
-                  //   "name": {},
-                  //   "id": {}
-                  // }
+                  "customField": {
+                    "name": {},
+                    // "id": {}
+                  }
                   
                 }
               }
@@ -198,19 +198,19 @@
         jobsList.forEach(job => {
           // Find estimator, PM, and status values from custom fields
           const estimator = job.customFieldValues.nodes.find(node => 
-            node.id === "22NwkvSGBvWS")?.value || 'Other';
-          const projectManager = job.customFieldValues.nodes.find(node => 
-            node.id === "22P3SR5R2Ptf")?.value || 'Not Assigned';
-          const status = job.customFieldValues.nodes.find(node => 
-            node.id === "22P3T6ycGR7z")?.value || 'Not Set';
+            node.customField.name === "Estimator")?.value || 'Other';
+          const productionManager = job.customFieldValues.nodes.find(node => 
+          node.customField.name ===  "Production Manager")?.value || 'Not Assigned';
+          const jobStatus = job.customFieldValues.nodes.find(node => 
+            node.customField.name === "Stage")?.value || 'Not Set';
 
           // Create job list item with additional info
           const jobDiv = document.createElement("div");
           jobDiv.innerHTML = `
             <strong>${job.name}</strong><br>
             <strong>Estimator:</strong> ${estimator}<br>
-            <strong>Project Manager:</strong> ${projectManager}<br>
-            <strong>Status:</strong> ${status}<br>
+            <strong>Project Manager:</strong> ${productionManager}<br>
+            <strong>Status:</strong> ${jobStatus}<br>
             <small>${job.location.street}, ${job.location.city}, ${job.location.state} ${job.location.postalCode}</small>
           `;
           jobsContainer.appendChild(jobDiv);
@@ -258,8 +258,8 @@
                   <div style="max-width: 200px;">
                     <strong>${job.name}</strong><br>
                     <strong>Estimator:</strong> ${estimator}<br>
-                    <strong>Project Manager:</strong> ${projectManager}<br>
-                    <strong>Status:</strong> ${status}<br>
+                    <strong>Production Manager:</strong> ${productionManager}<br>
+                    <strong>Status:</strong> ${jobStatus}<br>
                     <small>${address}</small>
                   </div>`
               });
