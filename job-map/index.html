@@ -3,23 +3,78 @@
 <head>
   <meta charset="UTF-8">
   <title>Job Map</title>
+  <!-- Add Bootstrap CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
   <style>
-    /* Simple styling for the jobs list */
+    body {
+      margin: 0;
+      padding: 0;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    #jobsList {
+      display: none;
+      padding: 10px;
+      border: 1px solid #ddd;
+      margin-bottom: 10px;
+      max-height: 300px;
+      overflow-y: auto;
+    }
     #jobsList div {
       padding: 8px;
       border-bottom: 1px solid #ddd;
     }
+    #map {
+      flex: 1;
+      width: 100%;
+      min-height: 0;
+    }
+    .form-check {
+      position: fixed;
+      top: 10px;
+      left: 10px;
+      z-index: 1000;
+      background: white;
+      padding: 5px 10px;
+      border-radius: 4px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+    }
+    .form-check-input {
+      cursor: pointer;
+    }
+    .marker-label {
+      color: black;
+      background-color: white;
+      padding: 2px;
+      border-radius: 2px;
+    }
   </style>
+  <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCK9cfqkPcy_1eqMT-avYHue7CLSCOBqA0"></script>
 </head>
 <body>
-  <h1>Job List</h1>
+  <!-- Add toggle switch -->
+  <div class="form-check form-switch mb-3">
+    <input class="form-check-input" type="checkbox" id="toggleJobs">
+    <label class="form-check-label" for="toggleJobs">Show Job List</label>
+  </div>
+  
   <div id="jobsList">
     <!-- Job items will be inserted here -->
   </div>
+  <div id="map"></div>
+
+  <!-- Add Bootstrap JS -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
   
   <script>
+    // Add toggle functionality
+    document.getElementById('toggleJobs').addEventListener('change', function() {
+      document.getElementById('jobsList').style.display = this.checked ? 'block' : 'none';
+    });
+
     // Use the production Django proxy endpoint
-    const proxyEndpoint = "http://127.0.0.1:8000/actions/api/jobtread-proxy/";
+    const proxyEndpoint = "https://be.humanagement.io/actions/api/jobtread-proxy/";
     const grantKey = "22SkCV5JXCtY6eKk5w2ZWBsyhpBBrr6Lea";
     const organizationId = "22NwWhUAf6VB";
     
@@ -115,12 +170,141 @@
       const jobsContainer = document.getElementById("jobsList");
       
       if (jobsList && jobsList.length > 0) {
+        // Initialize the map
+        const map = new google.maps.Map(document.getElementById("map"), {
+          zoom: 4,
+          center: { lat: 39.8283, lng: -98.5795 },
+        });
+
+        // Define estimator color mapping
+        const estimatorColors = {
+          'Jake': '#FF4444',     // bright red
+          'Jonathan': '#33B679', // green
+          'Dan': '#7986CB',      // blue-purple
+          'Jim': '#FFB300',      // amber
+          'Russ': '#8E24AA',     // purple
+          'Matt': '#0288D1',     // blue
+          // 'Brooklyn': '#F06292', // pink
+          // 'Chris': '#26A69A',    // teal
+          // 'Mitch': '#FFA726',    // orange
+          'Pablo': '#FFA726',    // Orange
+          'Other': '#757575'     // grey
+        };
+
+        const bounds = new google.maps.LatLngBounds();
+        let markersCount = 0;
+
+        // Create markers for each job
         jobsList.forEach(job => {
+          // Find estimator, PM, and status values from custom fields
+          const estimator = job.customFieldValues.nodes.find(node => 
+            node.id === "22NwkvSGBvWS")?.value || 'Other';
+          const projectManager = job.customFieldValues.nodes.find(node => 
+            node.id === "22P3SR5R2Ptf")?.value || 'Not Assigned';
+          const status = job.customFieldValues.nodes.find(node => 
+            node.id === "22P3T6ycGR7z")?.value || 'Not Set';
+
+          // Create job list item with additional info
           const jobDiv = document.createElement("div");
-          jobDiv.textContent = `Job: ${job.name} (ID: ${job.id}, City: ${job.location.city})`;
+          jobDiv.innerHTML = `
+            <strong>${job.name}</strong><br>
+            <strong>Estimator:</strong> ${estimator}<br>
+            <strong>Project Manager:</strong> ${projectManager}<br>
+            <strong>Status:</strong> ${status}<br>
+            <small>${job.location.street}, ${job.location.city}, ${job.location.state} ${job.location.postalCode}</small>
+          `;
           jobsContainer.appendChild(jobDiv);
 
+          const address = `${job.location.street}, ${job.location.city}, ${job.location.state} ${job.location.postalCode}`;
+          const geocoder = new google.maps.Geocoder();
+          
+          geocoder.geocode({ address: address }, (results, status) => {
+            if (status === "OK") {
+              // Create custom marker with estimator color
+              const marker = new google.maps.Marker({
+                map: map,
+                position: results[0].geometry.location,
+                title: job.name,
+                label: {
+                  text: job.name,
+                  fontSize: "8px",
+                  className: "marker-label"
+                },
+                icon: {
+                  path: google.maps.SymbolPath.CIRCLE,
+                  fillColor: estimatorColors[estimator] || estimatorColors['Other'],
+                  fillOpacity: 1,
+                  strokeWeight: 1,
+                  strokeColor: '#FFFFFF',
+                  scale: 10,
+                  labelOrigin: new google.maps.Point(0, -2)
+                }
+              });
+
+              bounds.extend(results[0].geometry.location);
+              markersCount++;
+
+              // Only adjust zoom after all markers are processed
+              if (markersCount === jobsList.length) {
+                map.fitBounds(bounds);
+                setTimeout(() => {
+                  map.setZoom(map.getZoom() + .5);
+                }, 100);
+              }
+
+              // Add info window with additional information
+              const infoWindow = new google.maps.InfoWindow({
+                content: `
+                  <div style="max-width: 200px;">
+                    <strong>${job.name}</strong><br>
+                    <strong>Estimator:</strong> ${estimator}<br>
+                    <strong>Project Manager:</strong> ${projectManager}<br>
+                    <strong>Status:</strong> ${status}<br>
+                    <small>${address}</small>
+                  </div>`
+              });
+
+              marker.addListener("click", () => {
+                infoWindow.open(map, marker);
+              });
+            }
+          });
         });
+
+        // Add legend for estimator colors
+        const legend = document.createElement('div');
+        legend.style.cssText = `
+          position: fixed;
+          bottom: 50px;
+          right: 10px;
+          background: white;
+          padding: 10px;
+          border-radius: 4px;
+          box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+          font-size: 12px;
+          max-height: 300px;
+          overflow-y: auto;
+        `;
+
+        Object.entries(estimatorColors).forEach(([name, color]) => {
+          const row = document.createElement('div');
+          row.style.marginBottom = '5px';
+          row.innerHTML = `
+            <span style="
+              display: inline-block;
+              width: 12px;
+              height: 12px;
+              background-color: ${color};
+              border-radius: 50%;
+              margin-right: 5px;
+              vertical-align: middle;
+            "></span>
+            ${name}
+          `;
+          legend.appendChild(row);
+        });
+
+        document.body.appendChild(legend);
       } else {
         jobsContainer.textContent = "No jobs found.";
       }
