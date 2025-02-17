@@ -170,10 +170,22 @@
       const jobsContainer = document.getElementById("jobsList");
       
       if (jobsList && jobsList.length > 0) {
-        // Initialize the map
+        // Initialize the map with custom styles
         const map = new google.maps.Map(document.getElementById("map"), {
           zoom: 4,
           center: { lat: 39.8283, lng: -98.5795 },
+          styles: [
+            {
+              featureType: "poi",
+              elementType: "labels",
+              stylers: [{ visibility: "off" }]
+            },
+            {
+              featureType: "transit",
+              elementType: "labels.icon",
+              stylers: [{ visibility: "off" }]
+            }
+          ]
         });
 
         // Define estimator color mapping
