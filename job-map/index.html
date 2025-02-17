@@ -185,14 +185,16 @@
           'Russ': '#8E24AA',     // purple
           'Matt': '#0288D1',     // blue
           // 'Brooklyn': '#F06292', // pink
-          // 'Chris': '#26A69A',    // teal
+          // 'Chris': '#26A69A',    // Teal
           // 'Mitch': '#FFA726',    // orange
-          'Pablo': '#FFA726',    // Orange
+          'Pablo': '#26A69A',    // Teal
           'Other': '#757575'     // grey
         };
 
         const bounds = new google.maps.LatLngBounds();
         let markersCount = 0;
+        // Declare currentInfoWindow at this scope level
+        let currentInfoWindow = null;
 
         // Create markers for each job
         jobsList.forEach(job => {
@@ -265,8 +267,16 @@
               });
 
               marker.addListener("click", () => {
+                // Close currently open info window if it exists
+                if (currentInfoWindow) {
+                  currentInfoWindow.close();
+                }
                 infoWindow.open(map, marker);
+                currentInfoWindow = infoWindow;
               });
+
+              // Store marker with its estimator information
+              markers.set(job.id, { marker, estimator });
             }
           });
         });
@@ -286,9 +296,18 @@
           overflow-y: auto;
         `;
 
+        // Keep track of markers and their estimators
+        const markers = new Map();
+        let activeFilters = new Set();
+
         Object.entries(estimatorColors).forEach(([name, color]) => {
           const row = document.createElement('div');
-          row.style.marginBottom = '5px';
+          row.style.cssText = `
+            margin-bottom: 5px;
+            cursor: pointer;
+            padding: 3px;
+            border-radius: 3px;
+          `;
           row.innerHTML = `
             <span style="
               display: inline-block;
@@ -301,6 +320,32 @@
             "></span>
             ${name}
           `;
+
+          // Add click handler for filtering
+          row.addEventListener('click', () => {
+            // Toggle background color properly
+            if (activeFilters.has(name)) {
+              activeFilters.delete(name);
+              row.style.backgroundColor = '';
+            } else {
+              activeFilters.add(name);
+              row.style.backgroundColor = 'rgba(0,0,0,0.1)';
+            }
+
+
+            // Show all markers if no filters are active
+            if (activeFilters.size === 0) {
+              markers.forEach((markerInfo) => {
+                markerInfo.marker.setVisible(true);
+              });
+            } else {
+              // Show only filtered markers
+              markers.forEach((markerInfo) => {
+                markerInfo.marker.setVisible(activeFilters.has(markerInfo.estimator));
+              });
+            }
+          });
+
           legend.appendChild(row);
         });
 
