@@ -13,7 +13,7 @@ export const metadata = {
 export default function RootLayout({ children }) {
   return (
     <html lang="en">
-      <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCK9cfqkPcy_1eqMT-avYHue7CLSCOBqA0"></script>
+      
       <body className={inter.className}>
         <ConfigProvider>
           {children}

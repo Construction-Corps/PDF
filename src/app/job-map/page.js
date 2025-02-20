@@ -3,6 +3,8 @@
 import { Layout, Button, Input, Space } from 'antd'
 import { SearchOutlined } from '@ant-design/icons'
 import JobMap from '@/app/job-map/JobMap'
+import { LoadScript } from '@react-google-maps/api'
+
 
 const { Header, Content } = Layout
 const { Search } = Input
@@ -33,7 +35,9 @@ export default function Home() {
         </Space> */}
       </Header>
       <Content>
-        <JobMap />
+      <LoadScript googleMapsApiKey={"AIzaSyCK9cfqkPcy_1eqMT-avYHue7CLSCOBqA0"}>
+          <JobMap />
+        </LoadScript>
       </Content>
     </Layout>
   )
