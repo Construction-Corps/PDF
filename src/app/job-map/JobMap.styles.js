@@ -77,6 +77,7 @@ export const MarkerLabel = styled.div`
   background: white;
   padding: 2px 6px;
   border-radius: 4px;
+  z-index: 10 !important;
   border: 1px solid rgba(0, 0, 0, 0.2);
   font-size: 12px;
   font-weight: bold;
@@ -91,6 +92,7 @@ export const MarkerLabel = styled.div`
 export const MapStyles = createGlobalStyle`
   .marker-label {
     background: white !important;
+    z-index: 1000 !important;
     padding: 2px 6px !important;
     border-radius: 4px !important;
     border: 1px solid rgba(0, 0, 0, 0.2) !important;

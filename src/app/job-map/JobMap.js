@@ -15,6 +15,43 @@ import {
     MapStyles
 } from './JobMap.styles';
 import { fetchJobTread } from '../../utils/JobTreadApi';
+import { ReloadOutlined } from '@ant-design/icons';
+import styled from 'styled-components';
+import Image from 'next/image';
+
+const RefreshButton = styled.button`
+  position: absolute;
+  top: 10px;
+  right: 55px;
+  background: white;
+  font-size: 18px;
+  border: 2px solid rgba(0, 0, 0, 0.0);
+  box-shadow: rgba(0, 0, 0, 0.3) 0px 1px 4px -1px;
+  border-radius: 2px;
+  cursor: pointer;
+  padding: 8px 8px;
+  z-index: 1;
+  
+  &:hover {
+    background: #f4f4f4;
+  }
+`;
+
+const Watermark = styled.div`
+  position: absolute;
+  top: 60px;
+  left: 35px;
+//   transform: translate(-50%, -50%);
+  pointer-events: none;
+  z-index: 1;
+  user-select: none;
+  opacity: 0.2;
+  
+  img {
+    width: auto;
+    height: 100px;
+  }
+`;
 
 const JobMap = () => {
     const [showJobs, setShowJobs] = useState(false);
@@ -201,6 +238,19 @@ const JobMap = () => {
         }
     };
     
+    const handleRefresh = () => {
+        // Reset necessary states
+        markers.clear();
+        setJobs([]);
+        setBounds(null);
+        
+        // Re-fetch the data
+        if (map) {
+            // This will trigger the useEffect that fetches jobs
+            setMap(map);
+        }
+    };
+    
     // Don't render the map container until we're on the client
     if (!isClient) return null;
     
@@ -236,52 +286,64 @@ const JobMap = () => {
         )}
         
         <MapDiv>
-        <GoogleMap
-        mapContainerStyle={{ width: '100%', height: '100%' }}
-        options={{
-            ...mapOptions,
-            // Add these options to reduce label flicker
-            //   gestureHandling: 'cooperative',
-            scrollwheel: true
-        }}
-        onLoad={setMap}
-        >
-        {Array.from(markers.values()).map(({ position, estimator, job }) => (
-            <React.Fragment key={job.id}>
-            <Marker
-            position={position}
-            icon={{
-                path: google.maps.SymbolPath.CIRCLE,
-                fillColor: estimatorColors[estimator] || estimatorColors['Other'],
-                fillOpacity: 1,
-                strokeWeight: 1,
-                strokeColor: '#FFFFFF',
-                scale: 10
+            <RefreshButton onClick={handleRefresh}>
+                <ReloadOutlined />
+            </RefreshButton>
+            <Watermark>
+                <Image 
+                    src="/images/cc-logo.png"
+                    alt="Construction Corpos"
+                    width={800}
+                    height={400}
+                    priority
+                />
+            </Watermark>
+            <GoogleMap
+            mapContainerStyle={{ width: '100%', height: '100%' }}
+            options={{
+                ...mapOptions,
+                // Add these options to reduce label flicker
+                //   gestureHandling: 'cooperative',
+                scrollwheel: true
             }}
-            onClick={() => setSelectedJob({ ...job, position })}
-            visible={activeFilters.size === 0 || activeFilters.has(estimator)}
-            label={{
-                text: job.name,
-                className: 'marker-label',
-                color: 'black',
-                fontSize: '12px',
-                fontWeight: 'bold'
-            }}
-            />
-            </React.Fragment>
-        ))}
-        
-        {selectedJob && (
-            <InfoWindow
-            position={selectedJob.position}
-            onCloseClick={() => setSelectedJob(null)}
+            onLoad={setMap}
             >
-            <div>
-            <JobTile job={selectedJob} type="map" />
-            </div>
-            </InfoWindow>
-        )}
-        </GoogleMap>
+            {Array.from(markers.values()).map(({ position, estimator, job }) => (
+                <React.Fragment key={job.id}>
+                <Marker
+                position={position}
+                icon={{
+                    path: google.maps.SymbolPath.CIRCLE,
+                    fillColor: estimatorColors[estimator] || estimatorColors['Other'],
+                    fillOpacity: 1,
+                    strokeWeight: 1,
+                    strokeColor: '#FFFFFF',
+                    scale: 10
+                }}
+                onClick={() => setSelectedJob({ ...job, position })}
+                visible={activeFilters.size === 0 || activeFilters.has(estimator)}
+                label={{
+                    text: job.name,
+                    className: 'marker-label',
+                    color: 'black',
+                    fontSize: '12px',
+                    fontWeight: 'bold'
+                }}
+                />
+                </React.Fragment>
+            ))}
+            
+            {selectedJob && (
+                <InfoWindow
+                position={selectedJob.position}
+                onCloseClick={() => setSelectedJob(null)}
+                >
+                <div>
+                <JobTile job={selectedJob} type="map" />
+                </div>
+                </InfoWindow>
+            )}
+            </GoogleMap>
         </MapDiv>
         
         <Legend>
