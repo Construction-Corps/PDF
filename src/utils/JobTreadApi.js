@@ -1,3 +1,5 @@
+import { toast } from 'react-toastify';
+
 const PROXY_ENDPOINT = "https://be.humanagement.io/actions/api/jobtread-proxy/";
 const GRANT_KEY = "22SkCV5JXCtY6eKk5w2ZWBsyhpBBrr6Lea";
 const ORGANIZATION_ID = "22NwWhUAf6VB";
@@ -27,13 +29,23 @@ export const fetchJobTread = async (customQuery) => {
       body: JSON.stringify(baseQuery)
     });
     
+    const data = await response.json();
+    
     if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+      const errorMessage = data.message || data.error || `HTTP error! status: ${response.status}`;
+      throw new Error(errorMessage);
     }
     
-    return await response.json();
+    if (data.error) {
+      throw new Error(data.error);
+    }
+    
+    return data;
   } catch (error) {
     console.error("JobTread API Error:", error);
+    // Get the most detailed error message available
+    const errorMessage = error.response?.data?.message || error.response?.data?.error || error.message;
+    toast.error(`Problem communicating with JobTread: ${errorMessage}`);
     throw error;
   }
 };

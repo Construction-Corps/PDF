@@ -18,6 +18,7 @@ const JobTile = ({ job }) => {
             "id": job.id
           },
           "id": {},
+          "createdAt": {},
           "comments": {
             "nodes": {
               "id": {},
@@ -44,9 +45,11 @@ const JobTile = ({ job }) => {
               "id": {},
               "description": {},
               "completed": {},
+              "progress": {},
               "name": {},
               "endDate": {},
-              "baselineEndDate": {}
+              "startDate": {},
+              "createdAt": {},
             }
           },
           "documents": {

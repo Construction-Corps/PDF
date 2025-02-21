@@ -36,14 +36,38 @@ const FormRow = styled(Row)`
 `;
 
 const StyledFormItem = styled(Form.Item)`
-  margin-bottom: 0;
+  margin: 0;
+  flex: 1;
   
   .ant-form-item-label {
-    padding-bottom: 4px;
-    
-    label {
-      font-size: 0.85rem;
+    padding-bottom: 0 !important;
+    > label {
+      font-size: 0.75rem;
+      padding-bottom: 0 !important;
       color: #666;
+      height: 16px;
+      margin: 0;
+    }
+  }
+
+  .ant-form-item-row {
+    flex-direction: column;
+    row-gap: 1px;
+  }
+
+  .ant-input {
+    padding: 4px 11px;
+    border-radius: 6px;
+    border: 1px solid #d9d9d9;
+    transition: all 0.3s;
+
+    &:hover {
+      border-color: #40a9ff;
+    }
+
+    &:focus {
+      border-color: #40a9ff;
+      box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.2);
     }
   }
 `;
@@ -82,6 +106,34 @@ const ButtonGroup = styled.div`
   gap: 1rem;
 `;
 
+const PageContainer = styled.div`
+  height: 100vh;
+  overflow-y: auto;
+  padding: 24px;
+`;
+
+const ScheduleRow = styled.div`
+  display: flex;
+  gap: 16px;
+  margin-bottom: 12px;
+  
+  &:last-child {
+    margin-bottom: 0;
+  }
+`;
+
+const ScheduleContainer = styled.div`
+  background: white;
+  padding: 16px;
+  border-radius: 8px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+`;
+
+const Label = styled.span`
+  font-size: 0.75rem;
+  color: #666;
+`;
+
 const PaymentSchedule = () => {
   const [form] = Form.useForm();
   const [rows, setRows] = useState([
@@ -105,7 +157,8 @@ const PaymentSchedule = () => {
   const updateDuePlaceholder = (index, phaseValue) => {
     const newRows = [...rows];
     if (!newRows[index].dueText || newRows[index].dueText.includes('Due upon ')) {
-      newRows[index].dueText = `Due upon ${phaseValue} start`;
+      newRows[index].dueText = `Due upon ${phaseValue} `
+      // + `start`;
       setRows(newRows);
     }
   };
@@ -177,136 +230,142 @@ const PaymentSchedule = () => {
   };
 
   return (
-    <Container>
-      <Title>Payment Breakdown</Title>
-      <Form 
-        form={form} 
-        onFinish={calculatePayments}
-        layout="vertical"
-      >
-        <StyledFormItem
-          label="Total Amount"
-          name="totalAmount"
-          rules={[{ required: true, message: 'Please enter total amount' }]}
+    <PageContainer>
+      <Container>
+        <Title>Payment Breakdown</Title>
+        <Form 
+          form={form} 
+          onFinish={calculatePayments}
+          layout="vertical"
         >
-          <Cleave
-            options={{
-              numeral: true,
-              numeralThousandsGroupStyle: 'thousand',
-              prefix: '$',
-              numeralDecimalScale: 2,
-              numeralPositiveOnly: true
-            }}
-            className="ant-input"
-            ref={cleaveRef}
-            placeholder="Enter total amount"
-          />
-        </StyledFormItem>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+            <Label>Total Amount</Label>
+            <StyledFormItem
+              name="totalAmount"
+              rules={[{ required: true, message: 'Please enter total amount' }]}
+            >
+              <Cleave
+                options={{
+                  numeral: true,
+                  numeralThousandsGroupStyle: 'thousand',
+                  prefix: '$',
+                  numeralDecimalScale: 2,
+                  numeralPositiveOnly: true,
+                  rawValueTrimPrefix: true
+                }}
+                className="ant-input"
+                ref={cleaveRef}
+                placeholder="Enter total amount"
+                style={{ width: '100%' }}
+              />
+            </StyledFormItem>
+          </div>
 
-        {rows.map((row, index) => (
-          <FormRow key={row.key} gutter={16} align="middle">
-            <Col span={6}>
-              <StyledFormItem
-                label="Phase"
-                required
-              >
-                <Input
-                  value={row.phase}
-                  onChange={(e) => handleRowChange(index, 'phase', e.target.value)}
-                  placeholder="Phase Name"
-                />
-              </StyledFormItem>
-            </Col>
-            <Col span={6}>
-              <StyledFormItem
-                label="Percentage"
-                required
-              >
-                <InputNumber
-                  value={row.percentage}
-                  onChange={(value) => handleRowChange(index, 'percentage', value)}
-                  placeholder="Percentage"
-                  style={{ width: '100%' }}
-                />
-              </StyledFormItem>
-            </Col>
-            <Col span={8}>
-              <StyledFormItem
-                label="Due Text"
-                required
-              >
-                <Input
-                  value={row.dueText}
-                  onChange={(e) => handleRowChange(index, 'dueText', e.target.value)}
-                  placeholder="Due upon"
-                />
-              </StyledFormItem>
-            </Col>
-            <Col span={4} style={{ display: 'flex', alignItems: 'flex-end' }}>
-              {index === rows.length - 1 ? (
-                <Button 
-                  type="primary" 
-                  danger 
-                  icon={<MinusOutlined />}
-                  onClick={() => removeRow(index)}
-                  disabled={rows.length <= 2}
-                  style={{ marginBottom: '4px' }}
-                />
-              ) : (
-                <Button 
-                  type="primary"
-                  icon={<PlusOutlined />}
-                  onClick={addRow}
-                  style={{ marginBottom: '4px' }}
-                />
-              )}
-            </Col>
-          </FormRow>
-        ))}
+          {rows.map((row, index) => (
+            <ScheduleRow key={row.key}>
+              <Col span={6}>
+                <StyledFormItem
+                  label="Phase"
+                  required
+                >
+                  <Input
+                    value={row.phase}
+                    onChange={(e) => handleRowChange(index, 'phase', e.target.value)}
+                    placeholder="Phase Name"
+                  />
+                </StyledFormItem>
+              </Col>
+              <Col span={6}>
+                <StyledFormItem
+                  label="Percentage"
+                  required
+                >
+                  <InputNumber
+                    value={row.percentage}
+                    onChange={(value) => handleRowChange(index, 'percentage', value)}
+                    placeholder="Percentage"
+                    style={{ width: '100%' }}
+                  />
+                </StyledFormItem>
+              </Col>
+              <Col span={8}>
+                <StyledFormItem
+                  label="Due Text"
+                  required
+                >
+                  <Input
+                    value={row.dueText}
+                    onChange={(e) => handleRowChange(index, 'dueText', e.target.value)}
+                    placeholder="Due upon"
+                  />
+                </StyledFormItem>
+              </Col>
+              <Col span={4} style={{ display: 'flex', alignItems: 'flex-end' }}>
+                {index === rows.length - 1 ? (
+                  <Button 
+                    type="primary" 
+                    danger 
+                    icon={<MinusOutlined />}
+                    onClick={() => removeRow(index)}
+                    disabled={rows.length <= 2}
+                    style={{ marginBottom: '4px' }}
+                  />
+                ) : (
+                  <Button 
+                    type="primary"
+                    icon={<PlusOutlined />}
+                    onClick={addRow}
+                    style={{ marginBottom: '4px' }}
+                  />
+                )}
+              </Col>
+            </ScheduleRow>
+          ))}
 
-        <TotalPercentage isValid={totalPercentage === 100}>
-          Total Percentage: {totalPercentage}%
-        </TotalPercentage>
+          <TotalPercentage isValid={totalPercentage === 100}>
+            Total Percentage: {totalPercentage}%
+          </TotalPercentage>
 
-        <ButtonGroup>
-          <Button 
-            type="primary" 
-            htmlType="submit" 
-            size="large"
-          >
-            Calculate
-          </Button>
-          <Button 
-            type="default" 
-            onClick={addRow}
-            size="large"
-            icon={<PlusOutlined />}
-          >
-            Add Row
-          </Button>
-        </ButtonGroup>
-      </Form>
+          <ButtonGroup>
+            <Button 
+              type="primary" 
+              htmlType="submit" 
+              size="large"
+            >
+              Calculate
+            </Button>
+            <Button 
+              type="default" 
+              onClick={addRow}
+              size="large"
+              icon={<PlusOutlined />}
+            >
+              Add Row
+            </Button>
+          </ButtonGroup>
+        </Form>
 
-      {output && (
-        <>
-          <Output>
-            {output.split('\n').map((line, index) => (
-              <p key={index}>{line}</p>
-            ))}
-          </Output>
+        {output && (
+          <>
+            <Output>
+              {output.split('\n').map((line, index) => (
+                <p key={index}>{line}</p>
+              ))}
+            </Output>
 
-          <Button 
-            icon={<CopyOutlined />} 
-            onClick={handleCopy}
-            style={{ marginTop: '1rem' }}
-            type="default"
-            size="large"
-          >
-            Copy to Clipboard
-          </Button>
-        </>
-      )}
-    </Container>
+            <Button 
+              icon={<CopyOutlined />} 
+              onClick={handleCopy}
+              style={{ marginTop: '1rem' }}
+              type="default"
+              size="large"
+            >
+              Copy to Clipboard
+            </Button>
+          </>
+        )}
+      </Container>
+    </PageContainer>
   );
 };
 

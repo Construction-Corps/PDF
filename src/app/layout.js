@@ -3,6 +3,8 @@ import { ConfigProvider } from 'antd'
 // Import antd styles
 import './globals.css'
 import 'antd/dist/reset.css'
+import { ToastContainer } from 'react-toastify'
+import 'react-toastify/dist/ReactToastify.css'
 
 
 const inter = Inter({ subsets: ['latin'] })
@@ -23,6 +25,7 @@ export default function RootLayout({ children }) {
         <ConfigProvider>
           {children}
         </ConfigProvider>
+        <ToastContainer position="top-right" autoClose={3000} />
       </body>
     </html>
   )
