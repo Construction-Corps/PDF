@@ -1,4 +1,5 @@
-import { Button } from 'antd';
+import { Button, Input } from 'antd';
+import { debounce } from 'lodash';
 import React, { useEffect, useState } from 'react';
 import { fetchJobTread } from '../../utils/JobTreadApi';
 import ActivityModal from './job-modals/ActivityModal';
@@ -6,9 +7,37 @@ import DailyLogsModal from './job-modals/DailyLogsModal';
 import TasksModal from './job-modals/TasksModal';
 import DocumentsModal from './job-modals/DocumentsModal';
 
+const debouncedAddComment = debounce(async (jobId, comment) => {
+  try {
+    const query = {
+      "createComment": {
+        "$": {
+          "targetId": jobId,
+          "message": comment,
+          "targetType": "job"
+        },
+        "createdComment": {
+          "id": {},
+          "message": {},
+          "name": {},
+          "createdAt": {},
+          "createdByUser": {
+            "name": {}
+          }
+        }
+      }
+    };
+    
+    return await fetchJobTread(query);
+  } catch (error) {
+    console.error("Error adding comment:", error);
+  }
+}, 500);
+
 const JobTile = ({ job }) => {
   const [jobDetails, setJobDetails] = useState(null);
   const [activeModal, setActiveModal] = useState(null);
+  const [newComment, setNewComment] = useState('');
   
   useEffect(() => {
     const loadJobDetails = async () => {
@@ -92,63 +121,96 @@ const JobTile = ({ job }) => {
   )?.value || 'Not Set';
   
   const address = `${job.location.street}, ${job.location.city}, ${job.location.state} ${job.location.postalCode}`;
-
+  
   const latestComment = jobDetails?.comments?.nodes[0];
   
   return (
     <div className="job-tile">
-      <strong>{job.name}</strong>
-      <div className="job-details">
-        <div><strong>Estimator:</strong> {estimator}</div>
-        <div><strong>Production Manager:</strong> {productionManager}</div>
-        <div><strong>Status:</strong> {jobStatus}</div>
-        <div className="address">{address}</div>
-        
-        <div className="modal-buttons">
-          <Button onClick={() => setActiveModal('activity')}>Activity</Button>
-          <Button onClick={() => setActiveModal('dlogs')}>D-Logs</Button>
-          <Button onClick={() => setActiveModal('tasks')}>Tasks</Button>
-          <Button onClick={() => setActiveModal('docs')}>Docs</Button>
-        </div>
-        
-        {activeModal === 'activity' && <ActivityModal 
-          job={jobDetails}
-          jobId={job.id}
-          open={activeModal === 'activity'}
-          onClose={() => setActiveModal(null)}
-        />}
-        {activeModal === 'dlogs' && <DailyLogsModal 
-          job={jobDetails}
-          jobId={job.id}
-          open={activeModal === 'dlogs'}
-          onClose={() => setActiveModal(null)}
+    <strong>{job.name}</strong>
+    <div className="job-details">
+    <div><strong>Estimator:</strong> {estimator}</div>
+    <div><strong>Production Manager:</strong> {productionManager}</div>
+    <div><strong>Status:</strong> {jobStatus}</div>
+    <div className="address">{address}</div>
+    
+    <div className="modal-buttons">
+    <Button onClick={() => setActiveModal('activity')}>Activity</Button>
+    <Button onClick={() => setActiveModal('dlogs')}>D-Logs</Button>
+    <Button onClick={() => setActiveModal('tasks')}>Tasks</Button>
+    <Button onClick={() => setActiveModal('docs')}>Docs</Button>
+    </div>
+    
+    {activeModal === 'activity' && <ActivityModal 
+      job={jobDetails}
+      jobId={job.id}
+      open={activeModal === 'activity'}
+      onClose={() => setActiveModal(null)}
+      />}
+      {activeModal === 'dlogs' && <DailyLogsModal 
+        job={jobDetails}
+        jobId={job.id}
+        open={activeModal === 'dlogs'}
+        onClose={() => setActiveModal(null)}
         />}
         {activeModal === 'tasks' && <TasksModal 
           job={jobDetails}
           jobId={job.id}
           open={activeModal === 'tasks'}
           onClose={() => setActiveModal(null)}
-        />}
-        {activeModal === 'docs' && <DocumentsModal   
-          job={jobDetails}
-          jobId={job.id}
-          open={activeModal === 'docs'}
-          onClose={() => setActiveModal(null)}
-        />}
+          />}
+          {activeModal === 'docs' && <DocumentsModal   
+            job={jobDetails}
+            jobId={job.id}
+            open={activeModal === 'docs'}
+            onClose={() => setActiveModal(null)}
+            />}
             
-        {jobDetails && latestComment && (
-          <div className="extended-details">
-            <div className="comments">
+            {jobDetails && latestComment && (
+              <div className="extended-details">
+              <div className="comments">
               <strong>Latest activity:</strong> 
               <div><strong>Date: </strong>{new Date(latestComment.createdAt).toLocaleDateString()}</div>
               <div><strong>By: </strong>{latestComment.createdByUser?.name || 'Unknown'}</div>
-              <div>{latestComment.message}</div>
+              {latestComment.name && <div><strong>Name: </strong>{latestComment.name}</div>}
+              <div><strong>Message: </strong>{latestComment.message}</div>
+              </div>
+              
+              <div className="comment-input-section">
+              <Input.TextArea
+              value={newComment}
+              onChange={(e) => setNewComment(e.target.value)}
+              placeholder="Add a comment..."
+              autoSize={{ minRows: 2, maxRows: 4 }}
+              className="comment-textarea"
+              />
+              <Button 
+              type="primary"
+              onClick={async () => {
+                if (newComment.trim()) {
+                  const data = await debouncedAddComment(job.id, newComment.trim());
+                  if (data?.createComment?.createdComment) {
+                    console.log({data});
+                    // Update the latest comment in jobDetails
+                    setJobDetails(prev => ({
+                      ...prev,
+                      comments: {
+                        nodes: [data.createComment.createdComment, ...(prev.comments?.nodes || [])]
+                      }
+                    }));
+                    setNewComment('');
+                  }
+                }
+              }}
+              className="comment-submit-btn btn-sm"
+              >
+              Add Comment
+              </Button>
+              </div>
+              </div>
+            )}
             </div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-};
-
-export default JobTile;
+            </div>
+          );
+        };
+        
+        export default JobTile;

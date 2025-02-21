@@ -343,3 +343,55 @@ body {
         transform: translateY(0);
     }
 }
+
+.extended-details {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid #f0f0f0;
+}
+
+.comments {
+  margin-bottom: 16px;
+}
+
+.latest-comment {
+  margin-top: 8px;
+  padding: 8px;
+  background-color: #fafafa;
+  border-radius: 4px;
+  color: #595959;
+}
+
+.comment-input-section {
+  margin-top: 12px;
+}
+
+.comment-textarea {
+  margin-bottom: 8px;
+  border-radius: 4px;
+  resize: none;
+}
+
+.comment-textarea:hover,
+.comment-textarea:focus {
+  border-color: #40a9ff;
+}
+
+.comment-submit-btn {
+  float: right;
+  margin-top: 8px;
+}
+
+/* Clear the float */
+.comment-input-section::after {
+  content: '';
+  display: table;
+  clear: both;
+}
+
+/* Button sizes */
+.btn-sm {
+    padding: 4px 8px;
+    font-size: 12px;
+    height: 24px;
+}
