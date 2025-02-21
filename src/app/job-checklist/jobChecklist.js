@@ -197,19 +197,27 @@ return (
         return (
             <tr
             key={job.id}
-            style={{ borderBottom: "1px solid #f0f0f0", verticalAlign: "top" }}
+            style={{ borderBottom: "1px solid #777", verticalAlign: "top" }}
             >
-            {/* First cell: job name and creation date */}
+                
+            {/* First cell: job name, stage, and earliest task */}
             <td style={{ padding: "8px", width: "250px" }}>
-            <div style={{ fontWeight: "bold" }}>{job.name}</div>
-            <div > <strong>Stage: </strong>{jobStage}</div>
-            <div style={{ fontSize: "0.9rem", color: "#888" }}>
-            Created:{" "}
-            {job.createdAt
-                ? new Date(job.createdAt).toLocaleDateString()
-                : "N/A"}
+                <div style={{ fontWeight: "bold" }}>{job.name}</div>
+                <div><strong>Stage: </strong>{jobStage}</div>
+                <div style={{ fontSize: "0.9rem", color: "#777" }}>
+                    Job Start: 
+                    {sortedTasks.length > 0 && sortedTasks[0].startDate
+                        ? new Date(sortedTasks[0].startDate).toLocaleDateString()
+                        : 'Not set'
+                    }
                 </div>
-                </td>
+                <div style={{ fontSize: "0.9rem", color: "#777" }}>
+                    Created: {job.createdAt
+                        ? new Date(job.createdAt).toLocaleDateString()
+                        : "N/A"
+                    }
+                </div>
+            </td>
                 
                 {/* 4. Each subsequent cell: a task with a checkbox */}
                 {sortedTasks.map((task) => (
