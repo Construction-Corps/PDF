@@ -26,6 +26,13 @@ export default function DirectoryPage() {
           >
             Calculate payment schedule
           </Card>
+          <Card 
+            title="Job Checklist" 
+            style={{ marginBottom: '20px' }}
+            extra={<Link href="/job-checklist">Open →</Link>}
+          >
+            View all jobs on a checklist
+          </Card>
           {/* Add more cards here for other sections */}
         </div>
       </Content>

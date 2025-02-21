@@ -1,4 +1,7 @@
+import React, { useEffect, useRef } from 'react';
 import currency from 'currency.js';
+import tippy from 'tippy.js';
+import 'tippy.js/dist/tippy.css';
 
 export const formatUSD = (value) => {
   return currency(value || 0, { 
@@ -33,6 +36,49 @@ export const roundUp = (value) => {
   return `$${Math.round(num)}`;
 };
 
+export const HTMLTooltip = ({ children, html, options = {} }) => {
+  const tooltipRef = useRef(null);
+
+  useEffect(() => {
+    const instance = tippy(tooltipRef.current, {
+      content: html,
+      placement: 'top',
+      arrow: true,
+      animation: 'fade',
+      theme: 'light',
+      allowHTML: true,
+      ...options
+    });
+
+    return () => {
+      instance.destroy();
+    };
+  }, [html, options]);
+
+  return React.cloneElement(children, { ref: tooltipRef });
+};
+
+export const TextTooltip = ({ children, text, options = {} }) => {
+  const tooltipRef = useRef(null);
+
+  useEffect(() => {
+    const instance = tippy(tooltipRef.current, {
+      content: text,
+      placement: 'top',
+      arrow: true,
+      animation: 'fade',
+      theme: 'light',
+      ...options
+    });
+
+    return () => {
+      instance.destroy();
+    };
+  }, [text, options]);
+
+  return React.cloneElement(children, { ref: tooltipRef });
+};
+
 // Examples:
 // formatUSD(1)           -> "$1.00"
 // formatUSD(100)         -> "$100.00"
@@ -48,3 +94,33 @@ export const roundUp = (value) => {
 // roundUp(1234567)       -> "$1.2m"
 // roundUp(1234567890)    -> "$1.2b"
 // roundUp(1234567890000) -> "$1.2t"
+
+// Usage examples:
+// HTML Tooltip:
+// HTMLTooltip 
+//   html={`
+//     <div>
+//       <strong>Name:</strong> ${task.name}<br>
+//       <strong>Description:</strong> ${task.description}
+//     </div>
+//   `}
+// >
+//   <button>Hover me</button>
+//
+// Text Tooltip:
+// TextTooltip text={`Name: ${task.name}\nDescription: ${task.description}`}>
+//   <div>Hover me</div>
+// </TextTooltip>
+//
+// With custom options:
+// HTMLTooltip 
+//   html={content}
+//   options={{
+//     placement: 'bottom',
+//     delay: [300, 0],
+//     duration: [300, 250],
+//     theme: 'dark'
+//   }}
+// >
+//   <span>Hover me</span>
+// </HTMLTooltip>

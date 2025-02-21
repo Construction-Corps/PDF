@@ -56,9 +56,9 @@ const ActivityModal = ({ jobId, open, onClose, job }) => {
           {comments.map(comment => (
             <Card key={comment.id} className="comment">
               <div className="comment-header">
-                <strong className="mr-2">{comment.name}</strong>
+                {comment.name && <strong className="mr-2">{comment.name}</strong>}
                 <span className="mr-2">{new Date(comment.createdAt).toLocaleDateString()}</span>
-                <span className="mr-2">{comment.createdByUser.name}</span>
+                <span className="mr-2 italic">{comment.createdByUser.name}</span>
               </div>
 
               
