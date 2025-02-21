@@ -24,7 +24,10 @@ export default function Home() {
       </Header> 
       <Content style={{ 
         overflow: 'auto',
-        height: 'calc(100vh - 0px)' // Subtract header height
+        overflowX: 'auto',
+        overflowY: 'auto',
+        height: 'calc(100vh - 0px)',
+        width: '100%'
       }}>
           <JobsChecklistPage />
       </Content>

@@ -14,6 +14,7 @@ function sortTasksByStartDate(tasks) {
 export default function JobsChecklistPage() {
     const [jobs, setJobs] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [taskTypes, setTaskTypes] = useState([]);
     
     // 1. Fetch the full list of jobs with tasks
     useEffect(() => {
@@ -24,6 +25,13 @@ export default function JobsChecklistPage() {
                 const jobsQuery = {
                     "organization": {
                         "id": {},
+                        "taskTypes": {
+                            "nodes": {
+                                "color": {},
+                                "name": {},
+                                "id": {}
+                            }
+                        },
                         "jobs": {
                             "nextPage": {},
                             $:{
@@ -83,6 +91,7 @@ export default function JobsChecklistPage() {
                                         "endDate": {},
                                         "startDate": {},
                                         "createdAt": {},
+                                        "taskType": {id:{}},
                                     }
                                 },
                             }
@@ -95,6 +104,7 @@ export default function JobsChecklistPage() {
                 // data.allJobs.nodes should have the list of jobs
                 if (data?.organization?.jobs?.nodes) {
                     setJobs(data.organization.jobs.nodes);
+                    setTaskTypes(data.organization.taskTypes.nodes);
                 }
             } catch (error) {
                 console.error("Fetching jobs failed:", error);
@@ -169,13 +179,14 @@ export default function JobsChecklistPage() {
 if (loading) return <div>Loading Jobs...</div>;
 
 return (
-    <div style={{ padding: "20px" }}>
+    <div style={{ padding: "20px", WebkitOverflowScrolling: "touch" }}>
     <h2>Jobs Checklist</h2>
     <table
     style={{
         width: "100%",
         borderCollapse: "collapse",
         marginTop: "16px",
+        touchAction: "pan-x pan-y"
     }}
     >
     <thead>
@@ -220,35 +231,75 @@ return (
             </td>
                 
                 {/* 4. Each subsequent cell: a task with a checkbox */}
-                {sortedTasks.map((task) => (
-                    <HTMLTooltip 
-                        html={`
-                            <div style="text-align: left">
-                                <strong>Name:</strong> ${task.name}<br>
-                                <strong>Description:</strong> ${task.description || 'No description'}
-                            </div>
-                        `}
-                    >
-                        <td 
-                            key={task.id} 
-                            style={{ maxWidth: "100px", overflow: "hidden", padding: "8px", whiteSpace: "nowrap" }}
-                        >
-                            <label style={{ cursor: "pointer" }}>
-                                <div>   
-                                    <input
-                                        type="checkbox"
-                                        checked={task.progress === 1}
-                                        onChange={(e) =>
-                                            handleCheckboxChange(job.id, task.id, e.target.checked)
-                                        }
-                                        style={{ marginRight: "6px" }}
-                                    />
+                {sortedTasks.map((task) => {
+                    const taskTypeInfo = taskTypes.find(tt => tt.id === task?.taskType?.id);
+                    console.log('Task Type Info:', {
+                        taskTypeId: task?.taskType?.id,
+                        foundInfo: taskTypeInfo,
+                        color: taskTypeInfo?.color
+                    });
+                    
+                    return (
+                        <HTMLTooltip 
+                            html={`
+                                <div style="text-align: left">
+                                    <strong>Name:</strong> ${task.name}<br>
+                                    <strong>Description:</strong> ${task.description || 'No description'}
                                 </div>
-                                {task.name}
-                            </label>
-                        </td>
-                    </HTMLTooltip>
-                ))}
+                            `}
+                            options={{
+                                touch: ['hold', 500], // Show on 500ms hold for touch devices
+                                interactive: true,    // Allow interaction with tooltip content
+                            }}
+                        >
+                            <td 
+                                key={task.id} 
+                                style={{ 
+                                    maxWidth: "100px", 
+                                    overflow: "hidden", 
+                                    padding: "8px", 
+                                    whiteSpace: "nowrap",
+                                    position: "relative" // For absolute positioning of color box
+                                }}
+                            >
+                                {taskTypeInfo && (
+                                    <HTMLTooltip
+                                        html={`<div>${taskTypeInfo.name}</div>`}
+                                        options={{
+                                            touch: ['hold', 500],
+                                            placement: 'top'
+                                        }}
+                                    >
+                                        <div 
+                                            style={{
+                                                position: "absolute",
+                                                top: "0px",
+                                                right: "0px",
+                                                width: "6px",
+                                                height: "15px",
+                                                backgroundColor: taskTypeInfo.color || '#ccc',
+                                                cursor: 'pointer'
+                                            }}
+                                        />
+                                    </HTMLTooltip>
+                                )}
+                                <label style={{ cursor: "pointer" }}>
+                                    <div>   
+                                        <input
+                                            type="checkbox"
+                                            checked={task.progress === 1}
+                                            onChange={(e) =>
+                                                handleCheckboxChange(job.id, task.id, e.target.checked)
+                                            }
+                                            style={{ marginRight: "6px" }}
+                                        />
+                                    </div>
+                                    {task.name}
+                                </label>
+                            </td>
+                        </HTMLTooltip>
+                    );
+                })}
                 </tr>
             );
         })}
