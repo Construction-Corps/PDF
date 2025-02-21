@@ -58,7 +58,8 @@ const JobTile = ({ job }) => {
               "amountPaid": {},
               "balance": {},
               "status": {},
-              "name": {}
+              "fullName": {},
+              "type": {}
             }
           }
         }

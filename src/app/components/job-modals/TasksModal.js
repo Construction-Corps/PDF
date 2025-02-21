@@ -43,6 +43,30 @@ const TasksModal = ({ jobId, open, onClose, job }) => {
 //     }
 //   };
 
+  const handleTaskComplete = async (taskId, completed) => {
+    try {
+      const query = {
+        "updateTask": {
+          "$": {
+            "id": taskId,
+            "completed": completed
+          }
+        }
+      };
+      
+      await fetchJobTread(query);
+      
+      // Update local state
+      setTasks(prevTasks => 
+        prevTasks.map(task => 
+          task.id === taskId ? { ...task, completed } : task
+        )
+      );
+    } catch (error) {
+      console.error("Error updating task:", error);
+    }
+  };
+
   return (
     <Modal
       title="Tasks"
@@ -57,8 +81,14 @@ const TasksModal = ({ jobId, open, onClose, job }) => {
           {tasks?.map(task => (
             <Card key={task.id} className="task">
               <div className="task-header">
-                {/* <strong>{task?.name}</strong> */}
-                <span className="ml-2">{task.completed ? '✓ Completed' : 'Pending'}</span>
+                <input
+                  type="checkbox"
+                  checked={task.completed}
+                  onChange={(e) => handleTaskComplete(task.id, e.target.checked)}
+                  className="mr-2"
+                />
+                <strong className="mr-2">{task?.name}</strong>
+                <span className="mr-2">{task.completed ? '✓ Completed' : 'Pending'}</span>
               </div>
               <div className="task-description">{task.description}</div>
               <div className="task-dates">

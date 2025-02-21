@@ -25,6 +25,7 @@ const DocumentsModal = ({ jobId, open, onClose, job}) => {
 //               "id": {},
 //               "price": {},
 //               "signedAt": {},
+//                fullName 
 //               "issueDate": {},
 //               "amountPaid": {},
 //               "balance": {},
@@ -57,7 +58,7 @@ const DocumentsModal = ({ jobId, open, onClose, job}) => {
           {documents.map(doc => (
             <Card key={doc.id} className="document">
               <div className="document-header">
-                <strong>Document: {doc.name}</strong>
+                <strong>Document: {doc.fullName}</strong>
               </div>
               <div className="document-details">
                 <div>Status: {doc.status}</div>

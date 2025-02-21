@@ -52,8 +52,8 @@ const DailyLogsModal = ({ jobId, open, onClose, job }) => {
           {dailyLogs.map(log => (
             <Card key={log.id} className="daily-log">
               <div className="daily-log-header">
-                <strong>{log.user.name}</strong>
-                <span>{new Date(log.date).toLocaleDateString()}</span>
+                <strong className="mr-2">{log.user.name}</strong>
+                <span className="mr-2">{new Date(log.date).toLocaleDateString()}</span>
               </div>
               <div className="comment-message">{log.notes}</div>
             </Card>  
