@@ -2,15 +2,17 @@
 
 import { Layout, Card } from 'antd'
 import Link from 'next/link'
+import ThemeSwitch from './components/ThemeSwitch'
 
 const { Content } = Layout
 
 export default function DirectoryPage() {
   
   return (
-    <Layout style={{ minHeight: '100vh' }}>
+    <Layout style={{ minHeight: '100vh', background: 'var(--background)' }}>
+      <ThemeSwitch />
       <Content style={{ padding: '50px' }}>
-        <h1>Directory</h1>
+        <h1 style={{ color: 'var(--foreground)' }}>Directory</h1>
         <div style={{ maxWidth: '800px', margin: '0 auto' }}>
           <Card 
             title="Job Map" 

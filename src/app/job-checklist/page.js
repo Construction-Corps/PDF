@@ -1,6 +1,7 @@
 'use client'
 
 import { Layout, Button, Input, Space } from 'antd'
+import ThemeSwitch from '../components/ThemeSwitch'
 
 import JobsChecklistPage from './jobChecklist'
 
@@ -10,7 +11,8 @@ const { Search } = Input
 
 export default function Home() {
   return (
-    <Layout style={{ minHeight: '100vh' }}>
+    <Layout style={{ minHeight: '100vh', background: 'var(--background)' }}>
+      <ThemeSwitch />
       <Header style={{ 
         background: '#fff', 
         height: '0px',
