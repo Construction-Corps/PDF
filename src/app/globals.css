@@ -68,6 +68,10 @@ td {
   color: var(--foreground);
 }
 
+.ant-card-head {
+  color: var(--foreground);
+}
+
 body {
   margin: 0;
   padding: 0;
