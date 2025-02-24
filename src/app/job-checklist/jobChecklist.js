@@ -256,46 +256,59 @@ return (
                                 key={task.id} 
                                 style={{ 
                                     maxWidth: "100px", 
+                                    lineHeight: "1.2",
                                     overflow: "hidden", 
+                                    wordWrap: "break-word",
                                     padding: "8px", 
-                                    whiteSpace: "nowrap",
-                                    position: "relative" // For absolute positioning of color box
+                                    whiteSpace: "wrap",
+                                    position: "relative" // For absolute positioning
                                 }}
                             >
-                                {taskTypeInfo && (
-                                    <HTMLTooltip
-                                        html={`<div>${taskTypeInfo.name}</div>`}
-                                        options={{
-                                            touch: ['hold', 500],
-                                            placement: 'top'
+                                {/* Color bar tooltip */}
+                                <HTMLTooltip
+                                    html={`<div>${taskTypeInfo?.name||'No Type'}</div>`}
+                                    options={{
+                                        touch: ['hold', 500],
+                                        placement: 'top'
+                                    }}
+                                >
+                                    <div 
+                                        style={{
+                                            position: "absolute",
+                                            top: "0px",
+                                            left: "2px",
+                                            width: "6px",
+                                            height: "95%",
+                                            backgroundColor: taskTypeInfo?.color || '#444444',
+                                            cursor: 'pointer'
                                         }}
-                                    >
-                                        <div 
-                                            style={{
-                                                position: "absolute",
-                                                top: "0px",
-                                                right: "0px",
-                                                width: "6px",
-                                                height: "15px",
-                                                backgroundColor: taskTypeInfo.color || '#ccc',
-                                                cursor: 'pointer'
-                                            }}
-                                        />
-                                    </HTMLTooltip>
-                                )}
-                                <label style={{ cursor: "pointer" }}>
-                                    <div>   
-                                        <input
-                                            type="checkbox"
-                                            checked={task.progress === 1}
-                                            onChange={(e) =>
-                                                handleCheckboxChange(job.id, task.id, e.target.checked)
-                                            }
-                                            style={{ marginRight: "6px" }}
-                                        />
+                                    />
+                                </HTMLTooltip>
+                                
+                                <div style={{ 
+                                    display: 'flex',
+                                    alignItems: 'flex-start',
+                                    marginLeft: '12px' // Space for color bar
+                                }}>
+                                    {/* Checkbox in top left */}
+                                    <input
+                                        type="checkbox"
+                                        checked={task.progress === 1}
+                                        onChange={(e) => handleCheckboxChange(job.id, task.id, e.target.checked)}
+                                        style={{ 
+                                            cursor: "pointer",
+                                            width: "20px",
+                                            height: "20px",
+                                            marginRight: "8px"
+                                        }}
+                                        onClick={(e) => e.stopPropagation()}
+                                    />
+                                    
+                                    {/* Task name to the right of checkbox */}
+                                    <div>
+                                        {task.name}
                                     </div>
-                                    {task.name}
-                                </label>
+                                </div>
                             </td>
                         </HTMLTooltip>
                     );
