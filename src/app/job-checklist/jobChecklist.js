@@ -38,7 +38,7 @@ export default function JobsChecklistPage() {
                     "jobs": {
                         "nextPage": {},
                         $:{
-                            "size": 20,
+                            "size": 40,
                             "with": {
                                 "cf": {
                                     "_": "customFieldValues",
