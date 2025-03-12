@@ -4,6 +4,8 @@ import { HTMLTooltip } from "../components/formatters/fields";
 import JobStatusFilter from "../components/JobStatusFilter";
 import JobTile from "../components/JobTile";
 import { CaretRightOutlined, CaretDownOutlined } from "@ant-design/icons";
+import dayjs from 'dayjs';
+
 
 // Helper for sorting tasks by startDate
 function sortTasksByStartDate(tasks) {
@@ -376,7 +378,9 @@ export default function JobsChecklistPage() {
                                                 html={`
                                                     <div style="text-align: left">
                                                         <strong>Name:</strong> ${task.name}<br>
-                                                        <strong>Description:</strong> ${task.description || 'No description'}
+                                                        <strong>Description:</strong> ${task.description || 'No description'}<br>
+                                                        <strong>Start Date:</strong> ${dayjs(task.startDate).format('MM/DD/YYYY') || 'No start date'}<br>
+                                                        <strong>End Date:</strong> ${dayjs(task.endDate).format('MM/DD/YYYY') || 'No end date'}
                                                     </div>
                                                 `}
                                                 options={{
