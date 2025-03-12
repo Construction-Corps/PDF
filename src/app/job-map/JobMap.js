@@ -18,6 +18,7 @@ import { fetchJobTread } from '../../utils/JobTreadApi';
 import { ReloadOutlined } from '@ant-design/icons';
 import styled from 'styled-components';
 import Image from 'next/image';
+import JobStatusFilter from '../components/JobStatusFilter';
 
 const RefreshButton = styled.button`
   position: absolute;
@@ -55,12 +56,13 @@ const Watermark = styled.div`
 
 const JobMap = () => {
     const [showJobs, setShowJobs] = useState(false);
-    const [markers] = useState(new Map());
+    const [markers, setMarkers] = useState(new Map());
     const [activeFilters, setActiveFilters] = useState(new Set());
     const [jobs, setJobs] = useState([]);
     const [currentInfoWindow, setCurrentInfoWindow] = useState(null);
     const [isClient, setIsClient] = useState(false);
     const [selectedJob, setSelectedJob] = useState(null);
+    const [isLoading, setIsLoading] = useState(false);
     
     // Add these new states for the map
     const [map, setMap] = useState(null);
@@ -77,13 +79,16 @@ const JobMap = () => {
         'Other': '#757575'
     };
     
+    // We're no longer setting initial value here, it will come from JobStatusFilter via localStorage
+    const [selectedStatuses, setSelectedStatuses] = useState([]);
+    
     useEffect(() => {
         setIsClient(true);
     }, []);
     
     const mapOptions = {
         zoom: 11,
-        disableAutoPan: true,  // Add this to prevent automatic panning
+        disableAutoPan: true,
         center: { lat: 27.8959, lng: -82.7001 },
         styles: [
             {
@@ -99,8 +104,10 @@ const JobMap = () => {
         ]
     };
     
-    useEffect(() => {
-        if (!isClient || !map) return;
+    const fetchJobs = async () => {
+        if (!isClient || !map || selectedStatuses.length === 0) return;
+        
+        setIsLoading(true);
         
         const jobsQuery = {
             "organization": {
@@ -129,15 +136,9 @@ const JobMap = () => {
                             "and": [
                                 ["closedOn","=",null],
                                 {
-                                    "or": [
-                                        [["cf", "values"], "=", "Job Started"],
-                                        [["cf", "values"], "=", "Job Mid Way"],
-                                        [["cf", "values"], "=", "Job Complete"],
-                                        [["cf", "values"], "=", "Design Sold"],
-                                        [["cf", "values"], "=", "SELL THE PROJECT!!!"],
-                                        [["cf", "values"], "=", "At Cost"],
-                                        [["cf", "values"], "=", "Pre-Production"]
-                                    ]
+                                    "or": selectedStatuses.map(status => 
+                                        [["cf", "values"], "=", status]
+                                    )
                                 }
                             ]
                         }
@@ -166,16 +167,20 @@ const JobMap = () => {
             }
         };
         
-        fetchJobTread(jobsQuery)
-        .then(data => {
+        try {
+            const data = await fetchJobTread(jobsQuery);
             const jobsList = data.organization?.jobs?.nodes;
             if (!jobsList?.length) {
                 console.log("No jobs found");
+                setJobs([]);
+                setMarkers(new Map());
+                setIsLoading(false);
                 return;
             }
             
             setJobs(jobsList);
             
+            const newMarkers = new Map();
             const newBounds = new google.maps.LatLngBounds();
             let markersCount = 0;
             
@@ -193,30 +198,44 @@ const JobMap = () => {
                         newBounds.extend(position);
                         markersCount++;
                         
-                        markers.set(job.id, { 
+                        newMarkers.set(job.id, { 
                             position: { lat: position.lat(), lng: position.lng() },
                             estimator,
                             job 
                         });
                         
                         if (markersCount === jobsList.length) {
+                            setMarkers(newMarkers);
                             setBounds(newBounds);
+                            
                             // Add a slight delay before fitting bounds to ensure smooth transition
+                            if (newBounds.isEmpty()) return;
+                            
                             setTimeout(() => {
                                 map.fitBounds(newBounds);
                                 setTimeout(() => {
-                                    map.setZoom(map.getZoom() );
+                                    if (map.getZoom() > 14) {
+                                        map.setZoom(14);
+                                    }
                                 }, 100);
+                                setIsLoading(false);
                             }, 500);
                         }
                     }
                 });
             });
-        })
-        .catch(error => {
+        } catch (error) {
             console.error("Error fetching jobs:", error);
-        });
-    }, [isClient, map]);
+            setIsLoading(false);
+        }
+    };
+    
+    // Fetch jobs when selectedStatuses changes or map is loaded
+    useEffect(() => {
+        if (selectedStatuses.length > 0 && map) {
+            fetchJobs();
+        }
+    }, [selectedStatuses, map]);
     
     const handleFilterClick = (name) => {
         const newFilters = new Set(activeFilters);
@@ -228,27 +247,19 @@ const JobMap = () => {
         setActiveFilters(newFilters);
         
         if (newFilters.size === 0) {
-            markers.forEach((markerInfo) => {
-                markerInfo.marker.setVisible(true);
-            });
-        } else {
-            markers.forEach((markerInfo) => {
-                markerInfo.marker.setVisible(newFilters.has(markerInfo.estimator));
-            });
+            // Show all markers when no filters are active
+            // (No need to do anything since rendering logic uses activeFilters)
         }
     };
     
     const handleRefresh = () => {
-        // Reset necessary states
-        markers.clear();
-        setJobs([]);
-        setBounds(null);
-        
-        // Re-fetch the data
-        if (map) {
-            // This will trigger the useEffect that fetches jobs
-            setMap(map);
-        }
+        // Just reload the data without clearing everything
+        fetchJobs();
+    };
+    
+    const handleStatusChange = (newStatuses) => {
+        setSelectedStatuses(newStatuses);
+        // Don't call fetchJobs() here - it will be triggered by the useEffect
     };
     
     // Don't render the map container until we're on the client
@@ -256,119 +267,134 @@ const JobMap = () => {
     
     return (
         <MapContainer>
-        <MapStyles />
-        <TopBar>
-        <Switch
-        checked={showJobs}
-        onChange={setShowJobs}
-        checkedChildren="Hide Job List"
-        unCheckedChildren="Show Job List"
-        />
-        </TopBar>
-        
-        <ContentWrapper>
-        {showJobs && (
-            <JobsList visible={showJobs} id="jobsList">
-            {jobs.map(job => (
-                <div 
-                key={job.id}
-                onClick={() => {
-                    const markerInfo = markers.get(job.id);
-                    if (markerInfo) {
-                        google.maps.event.trigger(markerInfo.marker, 'click');
-                    }
-                }}
-                >
-                <JobTile job={job} />
-                </div>
-            ))}
-            </JobsList>
-        )}
-        
-        <MapDiv>
-            <RefreshButton onClick={handleRefresh}>
-                <ReloadOutlined />
-            </RefreshButton>
-            <Watermark>
-                <Image 
-                    src="/images/cc-logo.png"
-                    alt="Construction Corpos"
-                    width={800}
-                    height={400}
-                    priority
+            <MapStyles />
+            <TopBar>
+                <Switch
+                    checked={showJobs}
+                    onChange={setShowJobs}
+                    checkedChildren="Hide Job List"
+                    unCheckedChildren="Show Job List"
                 />
-            </Watermark>
-            <GoogleMap
-            mapContainerStyle={{ width: '100%', height: '100%' }}
-            options={{
-                ...mapOptions,
-                // Add these options to reduce label flicker
-                //   gestureHandling: 'cooperative',
-                scrollwheel: true
-            }}
-            onLoad={setMap}
-            >
-            {Array.from(markers.values()).map(({ position, estimator, job }) => (
-                <React.Fragment key={job.id}>
-                <Marker
-                position={position}
-                icon={{
-                    path: google.maps.SymbolPath.CIRCLE,
-                    fillColor: estimatorColors[estimator] || estimatorColors['Other'],
-                    fillOpacity: 1,
-                    strokeWeight: 1,
-                    strokeColor: '#FFFFFF',
-                    scale: 10
-                }}
-                onClick={() => setSelectedJob({ ...job, position })}
-                visible={activeFilters.size === 0 || activeFilters.has(estimator)}
-                label={{
-                    text: job.name,
-                    className: 'marker-label',
-                    color: 'black',
-                    fontSize: '12px',
-                    fontWeight: 'bold'
-                }}
-                />
-                </React.Fragment>
-            ))}
+            </TopBar>
             
-            {selectedJob && (
-                <InfoWindow
-                position={selectedJob.position}
-                onCloseClick={() => setSelectedJob(null)}
-                >
-                <div>
-                <JobTile job={selectedJob} type="map" />
-                </div>
-                </InfoWindow>
-            )}
-            </GoogleMap>
-        </MapDiv>
-        
-        <Legend>
-        {Object.entries(estimatorColors).map(([name, color]) => (
-            <LegendRow
-            key={name}
-            active={activeFilters.has(name)}
-            onClick={() => handleFilterClick(name)}
-            >
-            <span
-            style={{
-                display: 'inline-block',
-                width: '12px',
-                height: '12px',
-                backgroundColor: color,
-                borderRadius: '50%',
-                marginRight: '5px',
-                verticalAlign: 'middle',
-            }}
-            />
-            {name}
-            </LegendRow>
-        ))}
-        </Legend>
-        </ContentWrapper>
+            <ContentWrapper>
+                <JobStatusFilter onStatusChange={handleStatusChange} />
+                
+                {isLoading && (
+                    <div style={{
+                        position: 'absolute',
+                        top: '50%',
+                        left: '50%',
+                        transform: 'translate(-50%, -50%)',
+                        background: 'rgba(255,255,255,0.8)',
+                        padding: '10px 20px',
+                        borderRadius: '4px',
+                        zIndex: 100
+                    }}>
+                        Loading...
+                    </div>
+                )}
+                
+                {showJobs && (
+                    <JobsList visible={showJobs} id="jobsList">
+                        {jobs.map(job => (
+                            <div 
+                                key={job.id}
+                                onClick={() => {
+                                    const markerInfo = markers.get(job.id);
+                                    if (markerInfo) {
+                                        setSelectedJob({...job, position: markerInfo.position});
+                                    }
+                                }}
+                            >
+                                <JobTile job={job} />
+                            </div>
+                        ))}
+                    </JobsList>
+                )}
+                
+                <MapDiv>
+                    <RefreshButton onClick={handleRefresh}>
+                        <ReloadOutlined />
+                    </RefreshButton>
+                    <Watermark>
+                        <Image 
+                            src="/images/cc-logo.png"
+                            alt="Construction Corpos"
+                            width={800}
+                            height={400}
+                            priority
+                        />
+                    </Watermark>
+                    <GoogleMap
+                        mapContainerStyle={{ width: '100%', height: '100%' }}
+                        options={{
+                            ...mapOptions,
+                            scrollwheel: true
+                        }}
+                        onLoad={setMap}
+                    >
+                        {Array.from(markers.values()).map(({ position, estimator, job }) => (
+                            <React.Fragment key={job.id}>
+                                <Marker
+                                    position={position}
+                                    icon={{
+                                        path: google.maps.SymbolPath.CIRCLE,
+                                        fillColor: estimatorColors[estimator] || estimatorColors['Other'],
+                                        fillOpacity: 1,
+                                        strokeWeight: 1,
+                                        strokeColor: '#FFFFFF',
+                                        scale: 10
+                                    }}
+                                    onClick={() => setSelectedJob({ ...job, position })}
+                                    visible={activeFilters.size === 0 || activeFilters.has(estimator)}
+                                    label={{
+                                        text: job.name,
+                                        className: 'marker-label',
+                                        color: 'black',
+                                        fontSize: '12px',
+                                        fontWeight: 'bold'
+                                    }}
+                                />
+                            </React.Fragment>
+                        ))}
+                        
+                        {selectedJob && (
+                            <InfoWindow
+                                position={selectedJob.position}
+                                onCloseClick={() => setSelectedJob(null)}
+                            >
+                                <div>
+                                    <JobTile job={selectedJob} type="map" />
+                                </div>
+                            </InfoWindow>
+                        )}
+                    </GoogleMap>
+                </MapDiv>
+                
+                <Legend>
+                    {Object.entries(estimatorColors).map(([name, color]) => (
+                        <LegendRow
+                            key={name}
+                            active={activeFilters.has(name)}
+                            onClick={() => handleFilterClick(name)}
+                        >
+                            <span
+                                style={{
+                                    display: 'inline-block',
+                                    width: '12px',
+                                    height: '12px',
+                                    backgroundColor: color,
+                                    borderRadius: '50%',
+                                    marginRight: '5px',
+                                    verticalAlign: 'middle',
+                                }}
+                            />
+                            {name}
+                        </LegendRow>
+                    ))}
+                </Legend>
+            </ContentWrapper>
         </MapContainer>
     );
 };

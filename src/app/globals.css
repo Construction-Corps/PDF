@@ -439,7 +439,7 @@ body {
 /* Theme switch styles */
 .theme-switch {
   position: fixed;
-  top: 20px;
+  top: 7px;
   right: 20px;
   z-index: 1000;
   background: none;
