@@ -2,6 +2,8 @@ import React, { useEffect, useState, useCallback } from "react";
 import { fetchJobTread } from "../../utils/JobTreadApi";
 import { HTMLTooltip } from "../components/formatters/fields";
 import JobStatusFilter from "../components/JobStatusFilter";
+import JobTile from "../components/JobTile";
+import { CaretRightOutlined, CaretDownOutlined } from "@ant-design/icons";
 
 // Helper for sorting tasks by startDate
 function sortTasksByStartDate(tasks) {
@@ -17,6 +19,8 @@ export default function JobsChecklistPage() {
     const [loading, setLoading] = useState(true);
     const [taskTypes, setTaskTypes] = useState([]);
     const [selectedStatuses, setSelectedStatuses] = useState([]);
+    const [expandedJobId, setExpandedJobId] = useState(null);
+    const [jobDetails, setJobDetails] = useState({});
     
     // Extract fetch jobs into a callback to avoid recreation on each render
     const fetchJobs = useCallback(async (statuses) => {
@@ -70,6 +74,13 @@ export default function JobsChecklistPage() {
                             "id": {},
                             "name": {},
                             "createdAt": {},
+                            "location": {
+                                "city": {},
+                                "street": {},
+                                "state": {},
+                                "postalCode": {},
+                                "id": {}
+                            },
                             "customFieldValues": {
                                 "nodes": {
                                     "value": {},
@@ -182,6 +193,91 @@ export default function JobsChecklistPage() {
         }
     };
 
+    // Function to fetch job details for expanded view
+    const fetchJobDetails = useCallback(async (jobId) => {
+        if (jobDetails[jobId]) return; // Already fetched
+        
+        try {
+            const detailsQuery = {
+                "job": {
+                    "$": {
+                        "id": jobId
+                    },
+                    "id": {},
+                    "createdAt": {},
+                    "comments": {
+                        "nodes": {
+                            "id": {},
+                            "message": {},
+                            "name": {},
+                            "createdAt": {},
+                            "createdByUser": {
+                                "name": {}
+                            }
+                        }
+                    },
+                    "dailyLogs": {
+                        "nodes": {
+                            "id": {},
+                            "notes": {},
+                            "date": {},
+                            "user": {
+                                "name": {}
+                            }
+                        }
+                    },
+                    "tasks": {
+                        "nodes": {
+                            "id": {},
+                            "description": {},
+                            "completed": {},
+                            "progress": {},
+                            "name": {},
+                            "endDate": {},
+                            "startDate": {},
+                            "createdAt": {},
+                        }
+                    },
+                    "documents": {
+                        "nodes": {
+                            "id": {},
+                            "price": {},
+                            "signedAt": {},
+                            "issueDate": {},
+                            "amountPaid": {},
+                            "balance": {},
+                            "status": {},
+                            "fullName": {},
+                            "type": {}
+                        }
+                    }
+                }
+            };
+            
+            const response = await fetchJobTread(detailsQuery);
+            if (response.job) {
+                setJobDetails(prev => ({
+                    ...prev,
+                    [jobId]: response.job
+                }));
+            }
+        } catch (error) {
+            console.error("Error loading job details:", error);
+        }
+    }, [jobDetails]);
+
+    // Toggle expanded job
+    const toggleExpandJob = (jobId) => {
+        if (expandedJobId === jobId) {
+            // Collapse if already expanded
+            setExpandedJobId(null);
+        } else {
+            // Expand and fetch details if needed
+            setExpandedJobId(jobId);
+            fetchJobDetails(jobId);
+        }
+    };
+
     return (
         <div style={{ padding: "20px", WebkitOverflowScrolling: "touch", position: "relative" }}>
             <h2>Jobs Checklist</h2>
@@ -207,36 +303,67 @@ export default function JobsChecklistPage() {
                     </thead>
                     <tbody>
                         {jobs.map((job) => {
-                            const jobStage = job.customFieldValues.nodes.find(node => 
-                                node.customField.name === "Stage"
-                            )?.value || 'Not Set';
-                            
                             // Sort tasks by earliest startDate
                             const sortedTasks = sortTasksByStartDate(job.tasks.nodes || []);
+                            const isExpanded = expandedJobId === job.id;
+                            
+                            // Get job info
+                            const estimator = job.customFieldValues.nodes.find(node => 
+                                node.customField.name === "Estimator"
+                            )?.value || 'Not Assigned';
+                            
+                            const productionManager = job.customFieldValues.nodes.find(node => 
+                                node.customField.name === "Production Manager"
+                            )?.value || 'Not Assigned';
+                            
+                            const jobStatus = job.customFieldValues.nodes.find(node => 
+                                node.customField.name === "Stage"
+                            )?.value || 'Not Set';
                             
                             return (
                                 <tr
                                     key={job.id}
                                     style={{ borderBottom: "1px solid #777", verticalAlign: "top" }}
                                 >
-                                    
-                                    {/* First cell: job name, stage, and earliest task */}
+                                    {/* First cell: Simplified JobTile */}
                                     <td style={{ padding: "8px", width: "250px" }}>
                                         <div style={{ fontWeight: "bold" }}>{job.name}</div>
-                                        <div><strong>Stage: </strong>{jobStage}</div>
-                                        <div style={{ fontSize: "0.9rem", color: "#777" }}>
-                                            Job Start: 
-                                            {sortedTasks.length > 0 && sortedTasks[0].startDate
-                                                ? new Date(sortedTasks[0].startDate).toLocaleDateString()
-                                                : 'Not set'
-                                            }
+                                        <div><strong>Estimator:</strong> {estimator}</div>
+                                        <div><strong>Production Manager:</strong> {productionManager}</div>
+                                        
+                                        <div style={{ 
+                                            display: "flex", 
+                                            alignItems: "center", 
+                                            justifyContent: "space-between"
+                                        }}>
+                                            <div><strong>Status:</strong> {jobStatus}</div>
+                                            <div 
+                                                onClick={() => toggleExpandJob(job.id)} 
+                                                style={{ 
+                                                    cursor: "pointer", 
+                                                    padding: "4px",
+                                                    display: "flex",
+                                                    alignItems: "center" 
+                                                }}
+                                            >
+                                                {isExpanded ? 
+                                                    <CaretDownOutlined /> : 
+                                                    <CaretRightOutlined />
+                                                }
+                                            </div>
                                         </div>
-                                        <div style={{ fontSize: "0.9rem", color: "#777" }}>
-                                            Created: {job.createdAt
-                                                ? new Date(job.createdAt).toLocaleDateString()
-                                                : "N/A"
-                                            }
-                                        </div>
+                                        
+                                        {isExpanded && jobDetails[job.id] && (
+                                            <div style={{ marginTop: "10px" }}>
+                                                <JobTile 
+                                                    job={{
+                                                        ...job,
+                                                        ...jobDetails[job.id]
+                                                    }} 
+                                                    inlineStyle={true}
+                                                />
+                                            </div>
+                                        )}
                                     </td>
                                     
                                     {/* Each subsequent cell: a task with a checkbox */}
@@ -253,8 +380,8 @@ export default function JobsChecklistPage() {
                                                     </div>
                                                 `}
                                                 options={{
-                                                    touch: ['hold', 500], // Show on 500ms hold for touch devices
-                                                    interactive: true,    // Allow interaction with tooltip content
+                                                    touch: ['hold', 500], 
+                                                    interactive: true,
                                                 }}
                                             >
                                                 <td 
@@ -265,7 +392,7 @@ export default function JobsChecklistPage() {
                                                         wordWrap: "break-word",
                                                         padding: "8px", 
                                                         whiteSpace: "wrap",
-                                                        position: "relative" // For absolute positioning
+                                                        position: "relative"
                                                     }}
                                                 >
                                                     {/* Color bar tooltip */}
@@ -292,7 +419,7 @@ export default function JobsChecklistPage() {
                                                     <div style={{ 
                                                         display: 'flex',
                                                         alignItems: 'flex-start',
-                                                        marginLeft: '12px' // Space for color bar
+                                                        marginLeft: '12px'
                                                     }}>
                                                         {/* Checkbox in top left */}
                                                         <input

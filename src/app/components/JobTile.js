@@ -34,7 +34,7 @@ const debouncedAddComment = debounce(async (jobId, comment) => {
   }
 }, 500);
 
-const JobTile = ({ job }) => {
+const JobTile = ({ job, inlineStyle = false }) => {
   const [jobDetails, setJobDetails] = useState(null);
   const [activeModal, setActiveModal] = useState(null);
   const [newComment, setNewComment] = useState('');
@@ -105,8 +105,12 @@ const JobTile = ({ job }) => {
       }
     };
     
-    loadJobDetails();
-  }, [job.id]);
+    if (!job.comments && !inlineStyle) {
+      loadJobDetails();
+    } else {
+      setJobDetails(job);
+    }
+  }, [job.id, job.comments, inlineStyle]);
   
   const estimator = job.customFieldValues.nodes.find(node => 
     node.customField.name === "Estimator"
@@ -125,92 +129,100 @@ const JobTile = ({ job }) => {
   const latestComment = jobDetails?.comments?.nodes[0];
   
   return (
-    <div className="job-tile">
-    <strong>{job.name}</strong>
-    <div className="job-details">
-    <div><strong>Estimator:</strong> {estimator}</div>
-    <div><strong>Production Manager:</strong> {productionManager}</div>
-    <div><strong>Status:</strong> {jobStatus}</div>
-    <div className="address">{address}</div>
-    
-    <div className="modal-buttons">
-    <Button onClick={() => setActiveModal('activity')}>Activity</Button>
-    <Button onClick={() => setActiveModal('dlogs')}>D-Logs</Button>
-    <Button onClick={() => setActiveModal('tasks')}>Tasks</Button>
-    <Button onClick={() => setActiveModal('docs')}>Docs</Button>
-    </div>
-    
-    {activeModal === 'activity' && <ActivityModal 
-      job={jobDetails}
-      jobId={job.id}
-      open={activeModal === 'activity'}
-      onClose={() => setActiveModal(null)}
-      />}
-      {activeModal === 'dlogs' && <DailyLogsModal 
-        job={jobDetails}
-        jobId={job.id}
-        open={activeModal === 'dlogs'}
-        onClose={() => setActiveModal(null)}
-        />}
-        {activeModal === 'tasks' && <TasksModal 
+    <div className={inlineStyle ? "" : "job-tile"}>
+      {!inlineStyle && <strong>{job.name}</strong>}
+      <div className={inlineStyle ? "" : "job-details"}>
+        {!inlineStyle && (
+          <>
+            <div><strong>Estimator:</strong> {estimator}</div>
+            <div><strong>Production Manager:</strong> {productionManager}</div>
+            <div><strong>Status:</strong> {jobStatus}</div>
+            <div className="address">{address}</div>
+          </>
+        )}
+        
+        {/* {!inlineStyle && ( */}
+          <div className="modal-buttons">
+            <Button onClick={() => setActiveModal('activity')}>Activity</Button>
+            <Button onClick={() => setActiveModal('dlogs')}>D-Logs</Button>
+            <Button onClick={() => setActiveModal('tasks')}>Tasks</Button>
+            <Button onClick={() => setActiveModal('docs')}>Docs</Button>
+          </div>
+        {/* )} */}
+        
+        {activeModal === 'activity' && <ActivityModal 
           job={jobDetails}
           jobId={job.id}
-          open={activeModal === 'tasks'}
+          open={activeModal === 'activity'}
           onClose={() => setActiveModal(null)}
           />}
-          {activeModal === 'docs' && <DocumentsModal   
+          {activeModal === 'dlogs' && <DailyLogsModal 
             job={jobDetails}
             jobId={job.id}
-            open={activeModal === 'docs'}
+            open={activeModal === 'dlogs'}
             onClose={() => setActiveModal(null)}
             />}
-            
-            {jobDetails && latestComment && (
-              <div className="extended-details">
-              <div className="comments">
-              <strong>Latest activity:</strong> 
-              <div><strong>Date: </strong>{new Date(latestComment.createdAt).toLocaleDateString()}</div>
-              <div><strong>By: </strong>{latestComment.createdByUser?.name || 'Unknown'}</div>
-              {latestComment.name && <div><strong>Name: </strong>{latestComment.name}</div>}
-              <div><strong>Message: </strong>{latestComment.message}</div>
-              </div>
-              
-              <div className="comment-input-section">
-              <Input.TextArea
-              value={newComment}
-              onChange={(e) => setNewComment(e.target.value)}
-              placeholder="Add a comment..."
-              autoSize={{ minRows: 2, maxRows: 4 }}
-              className="comment-textarea"
-              />
-              <Button 
-              type="primary"
-              onClick={async () => {
-                if (newComment.trim()) {
-                  const data = await debouncedAddComment(job.id, newComment.trim());
-                  if (data?.createComment?.createdComment) {
-                    console.log({data});
-                    // Update the latest comment in jobDetails
-                    setJobDetails(prev => ({
-                      ...prev,
-                      comments: {
-                        nodes: [data.createComment.createdComment, ...(prev.comments?.nodes || [])]
-                      }
-                    }));
-                    setNewComment('');
-                  }
-                }
-              }}
-              className="comment-submit-btn btn-sm"
-              >
-              Add Comment
-              </Button>
-              </div>
-              </div>
-            )}
-            </div>
-            </div>
-          );
-        };
-        
-        export default JobTile;
+            {activeModal === 'tasks' && <TasksModal 
+              job={jobDetails}
+              jobId={job.id}
+              open={activeModal === 'tasks'}
+              onClose={() => setActiveModal(null)}
+              />}
+              {activeModal === 'docs' && <DocumentsModal   
+                job={jobDetails}
+                jobId={job.id}
+                open={activeModal === 'docs'}
+                onClose={() => setActiveModal(null)}
+                />}
+                
+                {jobDetails && latestComment && (
+                  <div className={inlineStyle ? "" : "extended-details"}>
+                    <div className={inlineStyle ? "" : "comments"}>
+                      <strong>Latest activity:</strong> 
+                      <div><strong>Date: </strong>{new Date(latestComment.createdAt).toLocaleDateString()}</div>
+                      <div><strong>By: </strong>{latestComment.createdByUser?.name || 'Unknown'}</div>
+                      {latestComment.name && <div><strong>Name: </strong>{latestComment.name}</div>}
+                      <div><strong>Message: </strong>{latestComment.message}</div>
+                    </div>
+                    
+                    {/* {!inlineStyle && ( */}
+                      <div className="comment-input-section">
+                        <Input.TextArea
+                          value={newComment}
+                          onChange={(e) => setNewComment(e.target.value)}
+                          placeholder="Add a comment..."
+                          autoSize={{ minRows: 2, maxRows: 4 }}
+                          className="comment-textarea"
+                        />
+                        <Button 
+                          type="primary"
+                          onClick={async () => {
+                            if (newComment.trim()) {
+                              const data = await debouncedAddComment(job.id, newComment.trim());
+                              if (data?.createComment?.createdComment) {
+                                console.log({data});
+                                // Update the latest comment in jobDetails
+                                setJobDetails(prev => ({
+                                  ...prev,
+                                  comments: {
+                                    nodes: [data.createComment.createdComment, ...(prev.comments?.nodes || [])]
+                                  }
+                                }));
+                                setNewComment('');
+                              }
+                            }
+                          }}
+                          className="comment-submit-btn btn-sm"
+                        >
+                          Add Comment
+                        </Button>
+                      </div>
+                    {/* )} */}
+                  </div>
+                )}
+      </div>
+    </div>
+  );
+};
+
+export default JobTile;
