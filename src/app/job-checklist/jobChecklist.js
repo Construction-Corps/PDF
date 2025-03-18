@@ -299,6 +299,7 @@ export default function JobsChecklistPage() {
 
     // Handle loading more data when user scrolls to bottom
     const loadMoreJobs = useCallback(() => {
+        console.log("loadMoreJobs");
         if (nextPageToken && selectedStatuses.length > 0 && !loadingMore) {
             fetchJobs(selectedStatuses, nextPageToken, true);
         }
@@ -307,17 +308,40 @@ export default function JobsChecklistPage() {
     // Add scroll event listener to detect when user reaches bottom of the page
     useEffect(() => {
         const handleScroll = () => {
-            // Check if user has scrolled to bottom
-            if (
-                window.innerHeight + document.documentElement.scrollTop >= 
-                document.documentElement.offsetHeight - 100 // Load more when within 100px of bottom
-            ) {
+            // Adding specific console logs to debug the scroll behavior
+            console.log("=== SCROLL EVENT TRIGGERED ===");
+            
+            // Calculate values for scroll position detection
+            const windowHeight = window.innerHeight;
+            const scrollTop = window.scrollY || document.documentElement.scrollTop;
+            const docHeight = document.documentElement.scrollHeight;
+            const scrolledToBottom = windowHeight + scrollTop >= docHeight - 200;
+            
+            console.log({
+                windowHeight,
+                scrollTop,
+                docHeight,
+                scrolledToBottom
+            });
+            
+            if (scrolledToBottom) {
+                console.log("LOADING MORE JOBS!");
                 loadMoreJobs();
             }
         };
         
+        console.log("Adding scroll event listener");
         window.addEventListener('scroll', handleScroll);
-        return () => window.removeEventListener('scroll', handleScroll);
+        
+        // Call once on mount to check if initial content doesn't fill the page
+        setTimeout(() => {
+            handleScroll();
+        }, 1000);
+        
+        return () => {
+            console.log("Removing scroll event listener");
+            window.removeEventListener('scroll', handleScroll);
+        };
     }, [loadMoreJobs]);
 
     return (
