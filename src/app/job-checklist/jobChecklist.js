@@ -23,12 +23,14 @@ export default function JobsChecklistPage() {
     const [selectedStatuses, setSelectedStatuses] = useState([]);
     const [expandedJobId, setExpandedJobId] = useState(null);
     const [jobDetails, setJobDetails] = useState({});
+    const [nextPageToken, setNextPageToken] = useState("");
+    const [loadingMore, setLoadingMore] = useState(false);
     
     // Extract fetch jobs into a callback to avoid recreation on each render
-    const fetchJobs = useCallback(async (statuses) => {
+    const fetchJobs = useCallback(async (statuses, pageToken = "", append = false) => {
         if (!statuses || statuses.length === 0) return;
         
-        setLoading(true);
+        append ? setLoadingMore(true) : setLoading(true);
         try {
             // Example query to get all jobs & tasks
             const jobsQuery = {
@@ -44,7 +46,8 @@ export default function JobsChecklistPage() {
                     "jobs": {
                         "nextPage": {},
                         $:{
-                            "size": 40,
+                            "page": pageToken,
+                            "size": 10,
                             "with": {
                                 "cf": {
                                     "_": "customFieldValues",
@@ -92,6 +95,9 @@ export default function JobsChecklistPage() {
                                 }
                             },
                             "tasks": {
+                                "$": {
+                                "size": 75
+                                },    
                                 "nodes": {
                                     "id": {},
                                     "description": {},
@@ -113,20 +119,31 @@ export default function JobsChecklistPage() {
             
             // data.allJobs.nodes should have the list of jobs
             if (data?.organization?.jobs?.nodes) {
-                setJobs(data.organization.jobs.nodes);
+                if (append) {
+                    // Append new jobs to existing jobs
+                    setJobs(prevJobs => [...prevJobs, ...data.organization.jobs.nodes]);
+                } else {
+                    // Replace jobs with new data
+                    setJobs(data.organization.jobs.nodes);
+                }
+                
                 setTaskTypes(data.organization.taskTypes.nodes);
+                
+                // Store the next page token for future requests
+                setNextPageToken(data.organization.jobs.nextPage || "");
             }
         } catch (error) {
             console.error("Fetching jobs failed:", error);
         } finally {
-            setLoading(false);
+            append ? setLoadingMore(false) : setLoading(false);
         }
     }, []);
     
     // Only run fetchJobs when selectedStatuses changes
     useEffect(() => {
         if (selectedStatuses.length > 0) {
-            fetchJobs(selectedStatuses);
+            fetchJobs(selectedStatuses, "");
+            setNextPageToken("");
         }
     }, [selectedStatuses, fetchJobs]);
     
@@ -280,8 +297,31 @@ export default function JobsChecklistPage() {
         }
     };
 
+    // Handle loading more data when user scrolls to bottom
+    const loadMoreJobs = useCallback(() => {
+        if (nextPageToken && selectedStatuses.length > 0 && !loadingMore) {
+            fetchJobs(selectedStatuses, nextPageToken, true);
+        }
+    }, [nextPageToken, selectedStatuses, loadingMore, fetchJobs]);
+
+    // Add scroll event listener to detect when user reaches bottom of the page
+    useEffect(() => {
+        const handleScroll = () => {
+            // Check if user has scrolled to bottom
+            if (
+                window.innerHeight + document.documentElement.scrollTop >= 
+                document.documentElement.offsetHeight - 100 // Load more when within 100px of bottom
+            ) {
+                loadMoreJobs();
+            }
+        };
+        
+        window.addEventListener('scroll', handleScroll);
+        return () => window.removeEventListener('scroll', handleScroll);
+    }, [loadMoreJobs]);
+
     return (
-        <div style={{ padding: "20px", WebkitOverflowScrolling: "touch", position: "relative" }}>
+        <div style={{ padding: "20px" }}>
             <h2>Jobs Checklist</h2>
             
             <JobStatusFilter onStatusChange={handleStatusChange} />
@@ -289,170 +329,203 @@ export default function JobsChecklistPage() {
             {loading ? (
                 <div>Loading Jobs...</div>
             ) : (
-                <table
-                    style={{
-                        width: "100%",
-                        borderCollapse: "collapse",
-                        marginTop: "16px",
-                        touchAction: "pan-x pan-y"
-                    }}
-                >
-                    <thead>
-                        <tr style={{ textAlign: "left", borderBottom: "2px solid #f0f0f0" }}>
-                            <th style={{ padding: "8px" }}>Job</th>
-                            {/* We will create columns dynamically per job, so no shared columns here */}
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {jobs.map((job) => {
-                            // Sort tasks by earliest startDate
-                            const sortedTasks = sortTasksByStartDate(job.tasks.nodes || []);
-                            const isExpanded = expandedJobId === job.id;
-                            
-                            // Get job info
-                            const estimator = job.customFieldValues.nodes.find(node => 
-                                node.customField.name === "Estimator"
-                            )?.value || 'Not Assigned';
-                            
-                            const productionManager = job.customFieldValues.nodes.find(node => 
-                                node.customField.name === "Production Manager"
-                            )?.value || 'Not Assigned';
-                            
-                            const jobStatus = job.customFieldValues.nodes.find(node => 
-                                node.customField.name === "Stage"
-                            )?.value || 'Not Set';
-                            
-                            return (
-                                <tr
-                                    key={job.id}
-                                    style={{ borderBottom: "1px solid #777", verticalAlign: "top" }}
-                                >
-                                    {/* First cell: Simplified JobTile */}
-                                    <td style={{ padding: "8px", width: "250px" }}>
-                                        <div style={{ fontWeight: "bold" }}>{job.name}</div>
-                                        <div><strong>Estimator:</strong> {estimator}</div>
-                                        <div><strong>Production Manager:</strong> {productionManager}</div>
-                                        
-                                        <div style={{ 
-                                            display: "flex", 
-                                            alignItems: "center", 
-                                            justifyContent: "space-between"
-                                        }}>
-                                            <div><strong>Status:</strong> {jobStatus}</div>
-                                            <div 
-                                                onClick={() => toggleExpandJob(job.id)} 
-                                                style={{ 
-                                                    cursor: "pointer", 
-                                                    padding: "4px",
-                                                    display: "flex",
-                                                    alignItems: "center" 
-                                                }}
-                                            >
-                                                {isExpanded ? 
-                                                    <CaretDownOutlined /> : 
-                                                    <CaretRightOutlined />
-                                                }
-                                            </div>
-                                        </div>
-                                        
-                                        {isExpanded && jobDetails[job.id] && (
-                                            <div style={{ marginTop: "10px" }}>
-                                                <JobTile 
-                                                    job={{
-                                                        ...job,
-                                                        ...jobDetails[job.id]
-                                                    }} 
-                                                    inlineStyle={true}
-                                                />
-                                            </div>
-                                        )}
-                                    </td>
+                <div style={{ width: "100%" }}>
+                    <div style={{ 
+                        width: `${Math.max(1000, 250 + (jobs.reduce((max, job) => 
+                            Math.max(max, (job.tasks.nodes || []).length), 0) * 150))}px`
+                    }}>
+                        <table
+                            style={{
+                                width: "100%",
+                                borderCollapse: "collapse",
+                                marginTop: "16px",
+                                tableLayout: "fixed"
+                            }}
+                        >
+                            <thead>
+                                <tr style={{ textAlign: "left", borderBottom: "2px solid #f0f0f0" }}>
+                                    <th style={{ padding: "8px" }}>Job</th>
+                                    {/* We will create columns dynamically per job, so no shared columns here */}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {jobs.map((job) => {
+                                    // Sort tasks by earliest startDate
+                                    const sortedTasks = sortTasksByStartDate(job.tasks.nodes || []);
+                                    const isExpanded = expandedJobId === job.id;
                                     
-                                    {/* Each subsequent cell: a task with a checkbox */}
-                                    {sortedTasks.map((task) => {
-                                        const taskTypeInfo = taskTypes.find(tt => tt.id === task?.taskType?.id);
-                                        
-                                        return (
-                                            <HTMLTooltip 
-                                                key={task.id}
-                                                html={`
-                                                    <div style="text-align: left">
-                                                        <strong>Name:</strong> ${task.name}<br>
-                                                        <strong>Description:</strong> ${task.description || 'No description'}<br>
-                                                        <strong>Start Date:</strong> ${dayjs(task.startDate).format('MM/DD/YYYY') || 'No start date'}<br>
-                                                        <strong>End Date:</strong> ${dayjs(task.endDate).format('MM/DD/YYYY') || 'No end date'}
-                                                    </div>
-                                                `}
-                                                options={{
-                                                    touch: ['hold', 500], 
-                                                    interactive: true,
-                                                }}
-                                            >
-                                                <td 
-                                                    style={{ 
-                                                        maxWidth: "100px", 
-                                                        lineHeight: "1.2",
-                                                        overflow: "hidden", 
-                                                        wordWrap: "break-word",
-                                                        padding: "8px", 
-                                                        whiteSpace: "wrap",
-                                                        position: "relative"
-                                                    }}
-                                                >
-                                                    {/* Color bar tooltip */}
-                                                    <HTMLTooltip
-                                                        html={`<div>${taskTypeInfo?.name || 'No Type'}</div>`}
-                                                        options={{
-                                                            touch: ['hold', 500],
-                                                            placement: 'top'
+                                    // Get job info
+                                    const estimator = job.customFieldValues.nodes.find(node => 
+                                        node.customField.name === "Estimator"
+                                    )?.value || 'Not Assigned';
+                                    
+                                    const productionManager = job.customFieldValues.nodes.find(node => 
+                                        node.customField.name === "Production Manager"
+                                    )?.value || 'Not Assigned';
+                                    
+                                    const jobStatus = job.customFieldValues.nodes.find(node => 
+                                        node.customField.name === "Stage"
+                                    )?.value || 'Not Set';
+                                    
+                                    return (
+                                        <tr
+                                            key={job.id}
+                                            style={{ borderBottom: "1px solid #777", verticalAlign: "top" }}
+                                        >
+                                            {/* First cell: Simplified JobTile */}
+                                            <td style={{ padding: "8px", width: "250px" }}>
+                                                <div style={{ fontWeight: "bold" }}>{job.name}</div>
+                                                <div><strong>Estimator:</strong> {estimator}</div>
+                                                <div><strong>Production Manager:</strong> {productionManager}</div>
+                                                
+                                                <div style={{ 
+                                                    display: "flex", 
+                                                    alignItems: "center", 
+                                                    justifyContent: "space-between"
+                                                }}>
+                                                    <div><strong>Status:</strong> {jobStatus}</div>
+                                                    <div 
+                                                        onClick={() => toggleExpandJob(job.id)} 
+                                                        style={{ 
+                                                            cursor: "pointer", 
+                                                            padding: "4px",
+                                                            display: "flex",
+                                                            alignItems: "center" 
                                                         }}
                                                     >
-                                                        <div 
-                                                            style={{
-                                                                position: "absolute",
-                                                                top: "0px",
-                                                                left: "2px",
-                                                                width: "6px",
-                                                                height: "95%",
-                                                                backgroundColor: taskTypeInfo?.color || '#444444',
-                                                                cursor: 'pointer'
-                                                            }}
-                                                        />
-                                                    </HTMLTooltip>
-                                                    
-                                                    <div style={{ 
-                                                        display: 'flex',
-                                                        alignItems: 'flex-start',
-                                                        marginLeft: '12px'
-                                                    }}>
-                                                        {/* Checkbox in top left */}
-                                                        <input
-                                                            type="checkbox"
-                                                            checked={task.progress === 1}
-                                                            onChange={(e) => handleCheckboxChange(job.id, task.id, e.target.checked)}
-                                                            style={{ 
-                                                                cursor: "pointer",
-                                                                width: "20px",
-                                                                height: "20px",
-                                                                marginRight: "8px"
-                                                            }}
-                                                            onClick={(e) => e.stopPropagation()}
-                                                        />
-                                                        
-                                                        {/* Task name to the right of checkbox */}
-                                                        <div>
-                                                            {task.name}
-                                                        </div>
+                                                        {isExpanded ? 
+                                                            <CaretDownOutlined /> : 
+                                                            <CaretRightOutlined />
+                                                        }
                                                     </div>
-                                                </td>
-                                            </HTMLTooltip>
-                                        );
-                                    })}
-                                </tr>
-                            );
-                        })}
-                    </tbody>
-                </table>
+                                                </div>
+                                                
+                                                {isExpanded && jobDetails[job.id] && (
+                                                    <div style={{ marginTop: "10px" }}>
+                                                        <JobTile 
+                                                            job={{
+                                                                ...job,
+                                                                ...jobDetails[job.id]
+                                                            }} 
+                                                            inlineStyle={true}
+                                                        />
+                                                    </div>
+                                                )}
+                                            </td>
+                                            
+                                            {/* Each subsequent cell: a task with a checkbox */}
+                                            {sortedTasks.map((task) => {
+                                                const taskTypeInfo = taskTypes.find(tt => tt.id === task?.taskType?.id);
+                                                
+                                                return (
+                                                    <HTMLTooltip 
+                                                        key={task.id}
+                                                        html={`
+                                                            <div style="text-align: left">
+                                                                <strong>Name:</strong> ${task.name}<br>
+                                                                <strong>Description:</strong> ${task.description || 'No description'}<br>
+                                                                <strong>Start Date:</strong> ${dayjs(task.startDate).format('MM/DD/YYYY') || 'No start date'}<br>
+                                                                <strong>End Date:</strong> ${dayjs(task.endDate).format('MM/DD/YYYY') || 'No end date'}
+                                                            </div>
+                                                        `}
+                                                        options={{
+                                                            touch: ['hold', 500], 
+                                                            interactive: true,
+                                                        }}
+                                                    >
+                                                        <td 
+                                                            style={{ 
+                                                                maxWidth: "100px", 
+                                                                lineHeight: "1.2",
+                                                                overflow: "hidden", 
+                                                                wordWrap: "break-word",
+                                                                padding: "8px", 
+                                                                whiteSpace: "wrap",
+                                                                position: "relative"
+                                                            }}
+                                                        >
+                                                            {/* Color bar tooltip */}
+                                                            <HTMLTooltip
+                                                                html={`<div>${taskTypeInfo?.name || 'No Type'}</div>`}
+                                                                options={{
+                                                                    touch: ['hold', 500],
+                                                                    placement: 'top'
+                                                                }}
+                                                            >
+                                                                <div 
+                                                                    style={{
+                                                                        position: "absolute",
+                                                                        top: "0px",
+                                                                        left: "2px",
+                                                                        width: "6px",
+                                                                        height: "95%",
+                                                                        backgroundColor: taskTypeInfo?.color || '#444444',
+                                                                        cursor: 'pointer'
+                                                                    }}
+                                                                />
+                                                            </HTMLTooltip>
+                                                            
+                                                            <div style={{ 
+                                                                display: 'flex',
+                                                                alignItems: 'flex-start',
+                                                                marginLeft: '12px'
+                                                            }}>
+                                                                {/* Checkbox in top left */}
+                                                                <input
+                                                                    type="checkbox"
+                                                                    checked={task.progress === 1}
+                                                                    onChange={(e) => handleCheckboxChange(job.id, task.id, e.target.checked)}
+                                                                    style={{ 
+                                                                        cursor: "pointer",
+                                                                        width: "20px",
+                                                                        height: "20px",
+                                                                        marginRight: "8px"
+                                                                    }}
+                                                                    onClick={(e) => e.stopPropagation()}
+                                                                />
+                                                                
+                                                                {/* Task name to the right of checkbox */}
+                                                                <div>
+                                                                    {task.name}
+                                                                </div>
+                                                            </div>
+                                                        </td>
+                                                    </HTMLTooltip>
+                                                );
+                                            })}
+                                        </tr>
+                                    );
+                                })}
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    {/* Show loading indicator at the bottom when fetching more jobs */}
+                    {loadingMore && (
+                        <div style={{ textAlign: 'center', padding: '20px' }}>
+                            Loading more jobs...
+                        </div>
+                    )}
+                    
+                    {/* Show "Load More" button as an alternative to scroll */}
+                    {nextPageToken && !loadingMore && (
+                        <div style={{ textAlign: 'center', padding: '20px' }}>
+                            <button 
+                                onClick={loadMoreJobs}
+                                style={{
+                                    padding: '8px 16px',
+                                    backgroundColor: '#1890ff',
+                                    color: 'white',
+                                    border: 'none',
+                                    borderRadius: '4px',
+                                    cursor: 'pointer'
+                                }}
+                            >
+                                Load More
+                            </button>
+                        </div>
+                    )}
+                </div>
             )}
         </div>
     );
