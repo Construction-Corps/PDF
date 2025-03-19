@@ -36,13 +36,6 @@ export default function JobsChecklistPage() {
             const jobsQuery = {
                 "organization": {
                     "id": {},
-                    "taskTypes": {
-                        "nodes": {
-                            "color": {},
-                            "name": {},
-                            "id": {}
-                        }
-                    },
                     "jobs": {
                         "nextPage": {},
                         $:{
@@ -126,9 +119,7 @@ export default function JobsChecklistPage() {
                     // Replace jobs with new data
                     setJobs(data.organization.jobs.nodes);
                 }
-                
-                setTaskTypes(data.organization.taskTypes.nodes);
-                
+                                
                 // Store the next page token for future requests
                 setNextPageToken(data.organization.jobs.nextPage || "");
             }
@@ -138,10 +129,51 @@ export default function JobsChecklistPage() {
             append ? setLoadingMore(false) : setLoading(false);
         }
     }, []);
+
+
+    const fetchTaskTypes = useCallback(async (statuses, pageToken = "", append = false) => {
+        if (!statuses || statuses.length === 0) return;
+        
+        append ? setLoadingMore(true) : setLoading(true);
+        try {
+            // Example query to get all jobs & tasks
+            const taskTypesQuery = {
+                "organization": {
+                    "id": {},
+                    "taskTypes": {
+                        $:{
+                            "size": 100,
+                        },
+                        "nodes": {
+                            "color": {},
+                            "name": {},
+                            "id": {}
+                        }
+                    }
+                }
+            };
+            
+            const data = await fetchJobTread(taskTypesQuery);
+            
+            // data.allJobs.nodes should have the list of jobs
+            if (data?.organization?.taskTypes?.nodes) {
+               
+                
+                setTaskTypes(data.organization.taskTypes.nodes);
+                
+                // Store the next page token for future requests
+            }
+        } catch (error) {
+            console.error("Fetching Task Types failed:", error);
+        } finally {
+            append ? setLoadingMore(false) : setLoading(false);
+        }
+    }, []);
     
     // Only run fetchJobs when selectedStatuses changes
     useEffect(() => {
         if (selectedStatuses.length > 0) {
+            fetchTaskTypes(selectedStatuses, "");
             fetchJobs(selectedStatuses, "");
             setNextPageToken("");
         }
