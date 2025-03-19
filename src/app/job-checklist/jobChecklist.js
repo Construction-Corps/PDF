@@ -368,7 +368,14 @@ export default function JobsChecklistPage() {
                         >
                             <thead>
                                 <tr style={{ textAlign: "left", borderBottom: "2px solid #f0f0f0" }}>
-                                    <th style={{ padding: "8px" }}>Job</th>
+                                    <th style={{ 
+                                        padding: "8px", 
+                                        position: "sticky", 
+                                        left: 0, 
+                                        backgroundColor: "white",
+                                        zIndex: 2,
+                                        boxShadow: "inset -1px 0 0 #777"
+                                    }}>Job</th>
                                     {/* We will create columns dynamically per job, so no shared columns here */}
                                 </tr>
                             </thead>
@@ -397,7 +404,15 @@ export default function JobsChecklistPage() {
                                             style={{ borderBottom: "1px solid #777", verticalAlign: "top" }}
                                         >
                                             {/* First cell: Simplified JobTile */}
-                                            <td style={{ padding: "8px", width: "250px" }}>
+                                            <td style={{ 
+                                                padding: "8px", 
+                                                width: "250px",
+                                                position: "sticky",
+                                                left: 0,
+                                                backgroundColor: "white",
+                                                zIndex: 2,
+                                                boxShadow: "inset -1px 0 0 #777"
+                                            }}>
                                                 <div style={{ fontWeight: "bold" }}>{job.name}</div>
                                                 <div><strong>Estimator:</strong> {estimator}</div>
                                                 <div><strong>Production Manager:</strong> {productionManager}</div>
