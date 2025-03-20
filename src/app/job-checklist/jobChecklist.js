@@ -460,20 +460,11 @@ export default function JobsChecklistPage() {
                 const end = Math.max(currentIndex, lastIndex);
                 const tasksInRange = allTasks.slice(start, end + 1);
                 
-                // Add all tasks in range to selection
-                setSelectedTasks(prev => {
-                    const newSelection = [...prev];
-                    tasksInRange.forEach(t => {
-                        // Only add if not already selected
-                        if (!newSelection.some(st => st.taskId === t.taskId && st.jobId === t.jobId)) {
-                            newSelection.push(t);
-                        }
-                    });
-                    return newSelection;
-                });
+                // Clear previous selection and select only the range
+                setSelectedTasks(tasksInRange);
             }
         } else {
-            // Toggle selection for individual task
+            // For non-shift clicks, toggle selection and update last selected
             setSelectedTasks(prev => {
                 const isSelected = prev.some(t => t.taskId === taskId && t.jobId === jobId);
                 
@@ -483,10 +474,10 @@ export default function JobsChecklistPage() {
                     return [...prev, { taskId, jobId }];
                 }
             });
+            
+            // Always update last selected task on regular click
+            setLastSelectedTask({ taskId, jobId });
         }
-        
-        // Update last selected task
-        setLastSelectedTask({ taskId, jobId });
     };
     
     // Handle keyboard shortcuts
