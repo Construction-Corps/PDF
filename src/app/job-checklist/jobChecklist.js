@@ -3,8 +3,9 @@ import { fetchJobTread } from "../../utils/JobTreadApi";
 import { HTMLTooltip } from "../components/formatters/fields";
 import JobStatusFilter from "../components/JobStatusFilter";
 import JobTile from "../components/JobTile";
-import { CaretRightOutlined, CaretDownOutlined } from "@ant-design/icons";
+import { CaretRightOutlined, CaretDownOutlined, VerticalAlignMiddleOutlined, ArrowsAltOutlined   } from "@ant-design/icons";
 import dayjs from 'dayjs';
+import { Button, Tooltip } from 'antd';
 
 
 // Helper for sorting tasks by startDate
@@ -25,6 +26,8 @@ export default function JobsChecklistPage() {
     const [jobDetails, setJobDetails] = useState({});
     const [nextPageToken, setNextPageToken] = useState("");
     const [loadingMore, setLoadingMore] = useState(false);
+    const [searchTerm, setSearchTerm] = useState("");
+    const [isolatedJobId, setIsolatedJobId] = useState(null);
     
     // Extract fetch jobs into a callback to avoid recreation on each render
     const fetchJobs = useCallback(async (statuses, pageToken = "", append = false) => {
@@ -60,12 +63,14 @@ export default function JobsChecklistPage() {
                             "where": {
                                 "and": [
                                     ["closedOn","=",null],
+                                    ...(searchTerm ? [["name", "like", `%${searchTerm}%`]] : []),
                                     {
                                         "or": statuses.map(status => 
                                             [["cf", "values"], "=", status]
                                         )
                                     }
-                                ]
+                                ],
+                                
                             }
                         },
                         "nodes": {
@@ -128,11 +133,10 @@ export default function JobsChecklistPage() {
         } finally {
             append ? setLoadingMore(false) : setLoading(false);
         }
-    }, []);
+    }, [searchTerm]);
 
 
-    const fetchTaskTypes = useCallback(async (statuses, pageToken = "", append = false) => {
-        if (!statuses || statuses.length === 0) return;
+    const fetchTaskTypes = useCallback(async ( append = false) => {
         
         append ? setLoadingMore(true) : setLoading(true);
         try {
@@ -176,14 +180,31 @@ export default function JobsChecklistPage() {
             fetchTaskTypes(selectedStatuses, "");
             fetchJobs(selectedStatuses, "");
             setNextPageToken("");
+            // Clear isolation when filters change
+            setIsolatedJobId(null);
         }
-    }, [selectedStatuses, fetchJobs]);
+    }, [selectedStatuses, searchTerm, fetchJobs]);
     
     // Handle status changes from the filter component
     const handleStatusChange = useCallback((newStatuses) => {
         setSelectedStatuses(newStatuses);
     }, []);
     
+    // Handle search changes
+    const handleSearchChange = useCallback((newSearchTerm) => {
+        setSearchTerm(newSearchTerm);
+    }, []);
+    
+    // Function to handle job isolation
+    const handleIsolateJob = (jobId) => {
+        setIsolatedJobId(prevId => prevId === jobId ? null : jobId);
+    };
+
+    // Get filtered jobs based on isolation
+    const filteredJobs = isolatedJobId 
+        ? jobs.filter(job => job.id === isolatedJobId)
+        : jobs;
+
     // Function to toggle progress 0 <-> 1
     const handleCheckboxChange = async (jobId, taskId, checked) => {
         try {
@@ -380,14 +401,39 @@ export default function JobsChecklistPage() {
         <div style={{ padding: "20px" }}>
             <h2>Jobs Checklist</h2>
             
-            <JobStatusFilter onStatusChange={handleStatusChange} />
+            <JobStatusFilter 
+                onStatusChange={handleStatusChange} 
+                onSearchChange={handleSearchChange}
+            />
+            
+            {isolatedJobId && (
+                <div style={{ 
+                    margin: "10px 0", 
+                    padding: "8px", 
+                    background: "#f0f8ff", 
+                    border: "1px solid #91d5ff",
+                    borderRadius: "4px",
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center"
+                }}>
+                    <span>Showing isolated job only</span>
+                    <Button 
+                        type="primary" 
+                        size="small" 
+                        onClick={() => setIsolatedJobId(null)}
+                    >
+                        Show All Jobs
+                    </Button>
+                </div>
+            )}
             
             {loading ? (
                 <div>Loading Jobs...</div>
             ) : (
                 <div style={{ width: "100%" }}>
                     <div style={{ 
-                        width: `${Math.max(1000, 250 + (jobs.reduce((max, job) => 
+                        width: `${Math.max(1000, 250 + (filteredJobs.reduce((max, job) => 
                             Math.max(max, (job.tasks.nodes || []).length), 0) * 150))}px`
                     }}>
                         <table
@@ -412,7 +458,7 @@ export default function JobsChecklistPage() {
                                 </tr>
                             </thead>
                             <tbody>
-                                {jobs.map((job) => {
+                                {filteredJobs.map((job) => {
                                     // Sort tasks by earliest startDate
                                     const sortedTasks = sortTasksByStartDate(job.tasks.nodes || []);
                                     const isExpanded = expandedJobId === job.id;
@@ -445,7 +491,39 @@ export default function JobsChecklistPage() {
                                                 zIndex: 2,
                                                 boxShadow: "inset -1px 0 0 #777"
                                             }}>
-                                                <div style={{ fontWeight: "bold" }}>{job.name}</div>
+                                                <div style={{ 
+                                                    display: "flex", 
+                                                    justifyContent: "space-between", 
+                                                    alignItems: "center",
+                                                    marginBottom: "5px"
+                                                }}>
+                                                    <div style={{ fontWeight: "bold" }}>{job.name}</div>
+                                                        <Tooltip
+                                                            title={isolatedJobId === job.id ? "Show all jobs" : "Isolate this job"}
+                                                            options={{
+                                                            touch: ['hold', 500],
+                                                            placement: 'top'
+                                                        }}
+                                                        >
+                                                        <div 
+                                                            onClick={() => handleIsolateJob(job.id)}
+                                                            style={{
+                                                                cursor: "pointer",
+                                                                padding: "2px 5px",
+                                                                borderRadius: "3px",
+                                                                background: isolatedJobId === job.id ? "#1890ff" : "#f0f0f0",
+                                                                color: isolatedJobId === job.id ? "white" : "#555"
+                                                            }}
+                                                            
+                                                        >
+                                                            {isolatedJobId === job.id ? 
+                                                                <ArrowsAltOutlined />
+                                                                :
+                                                                <VerticalAlignMiddleOutlined />
+                                                            }
+                                                        </div>
+                                                    </Tooltip>
+                                                </div>
                                                 <div><strong>Estimator:</strong> {estimator}</div>
                                                 <div><strong>Production Manager:</strong> {productionManager}</div>
                                                 

@@ -1,12 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
-import { Dropdown, Checkbox, Button } from 'antd';
+import { Dropdown, Checkbox, Button, Input } from 'antd';
+import { SearchOutlined } from '@ant-design/icons';
 
 const FilterContainer = styled.div`
   position: absolute;
   top: 10px;
   right: 100px;
   z-index: 10;
+  display: flex;
+  gap: 10px;
 `;
 
 const FilterButton = styled(Button)`
@@ -41,6 +44,11 @@ const FilterOption = styled.div`
   }
 `;
 
+const SearchInput = styled(Input)`
+  width: 200px;
+  border-radius: 4px;
+`;
+
 // List of all possible status options
 const ALL_STATUSES = [
   "Called - No Answer 📵", 
@@ -71,15 +79,15 @@ const DEFAULT_SELECTIONS = [
   "Job Started 🔨",
   "Job Mid Way ⚒️", 
   "Job Complete ✅", 
-//   "Design Sold 💲", 
   "Pre-Production 🗓️", 
   "Awaiting Payment ⏲️"
 ];
 
 // localStorage key for status selections
 const STORAGE_KEY = 'jobStatusFilterSelections';
+const SEARCH_KEY = 'jobStatusFilterSearch';
 
-const JobStatusFilter = ({ onStatusChange, initialSelections = null }) => {
+const JobStatusFilter = ({ onStatusChange, onSearchChange, initialSelections = null }) => {
   // Initialize from localStorage or fall back to defaults
   const [selectedStatuses, setSelectedStatuses] = useState(() => {
     if (typeof window !== 'undefined') {
@@ -93,6 +101,18 @@ const JobStatusFilter = ({ onStatusChange, initialSelections = null }) => {
       }
     }
     return initialSelections || DEFAULT_SELECTIONS;
+  });
+  
+  // Initialize search term from localStorage
+  const [searchTerm, setSearchTerm] = useState(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        return localStorage.getItem(SEARCH_KEY) || "";
+      } catch (e) {
+        console.error('Error reading search from localStorage', e);
+      }
+    }
+    return "";
   });
   
   const [open, setOpen] = useState(false);
@@ -110,6 +130,21 @@ const JobStatusFilter = ({ onStatusChange, initialSelections = null }) => {
     onStatusChange(selectedStatuses);
   }, [selectedStatuses, onStatusChange]);
   
+  // Update localStorage when search term changes
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem(SEARCH_KEY, searchTerm);
+      } catch (e) {
+        console.error('Error writing search to localStorage', e);
+      }
+    }
+    // Notify parent component
+    if (onSearchChange) {
+      onSearchChange(searchTerm);
+    }
+  }, [searchTerm, onSearchChange]);
+  
   const handleStatusToggle = (status) => {
     setSelectedStatuses(prev => {
       if (prev.includes(status)) {
@@ -126,6 +161,10 @@ const JobStatusFilter = ({ onStatusChange, initialSelections = null }) => {
   
   const handleClearAll = () => {
     setSelectedStatuses([]);
+  };
+  
+  const handleSearchChange = (e) => {
+    setSearchTerm(e.target.value);
   };
   
   const menu = (
@@ -146,6 +185,12 @@ const JobStatusFilter = ({ onStatusChange, initialSelections = null }) => {
   
   return (
     <FilterContainer>
+      <SearchInput
+        placeholder="Search jobs..."
+        value={searchTerm}
+        onChange={handleSearchChange}
+        prefix={<SearchOutlined />}
+      />
       <Dropdown 
         overlay={menu} 
         trigger={['click']} 
