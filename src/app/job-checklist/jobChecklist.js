@@ -441,26 +441,40 @@ export default function JobsChecklistPage() {
         
         // If shift key is pressed and we have a last selected task
         if (e.shiftKey && lastSelectedTask) {
-            const allTasks = jobs.flatMap(job => 
-                (job.tasks.nodes || []).map(task => ({ 
-                    taskId: task.id, 
-                    jobId: job.id 
-                }))
-            );
+            // Create a visual mapping of tasks that matches the displayed order
+            const visibleJobs = isolatedJobId 
+                ? jobs.filter(job => job.id === isolatedJobId)
+                : jobs;
             
-            // Find indices of current and last selected task
-            const currentIndex = allTasks.findIndex(t => t.taskId === taskId && t.jobId === jobId);
-            const lastIndex = allTasks.findIndex(t => 
-                t.taskId === lastSelectedTask.taskId && t.jobId === lastSelectedTask.jobId
+            // Create ordered list that matches visual display (job by job, then tasks within each job)
+            const visualOrderedTasks = [];
+            visibleJobs.forEach(job => {
+                const sortedTasks = sortTasksByStartDate(job.tasks.nodes || []);
+                sortedTasks.forEach(task => {
+                    visualOrderedTasks.push({
+                        taskId: task.id,
+                        jobId: job.id
+                    });
+                });
+            });
+            
+            // Find indices in this visual order
+            const currentIndex = visualOrderedTasks.findIndex(
+                t => t.taskId === taskId && t.jobId === jobId
+            );
+            const lastIndex = visualOrderedTasks.findIndex(
+                t => t.taskId === lastSelectedTask.taskId && t.jobId === lastSelectedTask.jobId
             );
             
             if (currentIndex !== -1 && lastIndex !== -1) {
-                // Get range of tasks between last selected and current
+                // Get range of tasks between last selected and current (inclusive)
                 const start = Math.min(currentIndex, lastIndex);
                 const end = Math.max(currentIndex, lastIndex);
-                const tasksInRange = allTasks.slice(start, end + 1);
                 
-                // Clear previous selection and select only the range
+                // Select exactly the tasks in range (not one more, not one less)
+                const tasksInRange = visualOrderedTasks.slice(start, end + 1);
+                
+                // Replace the entire selection with this range
                 setSelectedTasks(tasksInRange);
             }
         } else {
@@ -562,6 +576,33 @@ export default function JobsChecklistPage() {
         localStorage.setItem('minimizedTasks', JSON.stringify(allTasks));
     };
 
+    // Add new function to minimize all completed tasks
+    const handleMinimizeCompletedTasks = () => {
+        // Collect all completed tasks from all jobs
+        const completedTasks = jobs.flatMap(job => 
+            (job.tasks.nodes || [])
+                .filter(task => task.progress === 1)
+                .map(task => ({ 
+                    taskId: task.id, 
+                    jobId: job.id 
+                }))
+        );
+        
+        // Add completed tasks to minimized tasks (avoid duplicates)
+        setMinimizedTasks(prev => {
+            const newMinimized = [...prev];
+            completedTasks.forEach(task => {
+                if (!newMinimized.some(t => t.taskId === task.taskId && t.jobId === task.jobId)) {
+                    newMinimized.push(task);
+                }
+            });
+            
+            // Save to localStorage
+            localStorage.setItem('minimizedTasks', JSON.stringify(newMinimized));
+            return newMinimized;
+        });
+    };
+
     return (
         <div style={{ padding: "20px" }}>
             <h2>Jobs Checklist</h2>
@@ -616,7 +657,7 @@ export default function JobsChecklistPage() {
                                 onClick={() => {
                                     setMinimizedTasks(prev => {
                                         const newMinimized = prev.filter(t => 
-                                            !selectedTasks.some(st => st.taskId === t.taskId && st.jobId === t.jobId)
+                                            !selectedTasks.some(st => st.taskId === t.taskId && t.jobId === t.jobId)
                                         );
                                         
                                         localStorage.setItem('minimizedTasks', JSON.stringify(newMinimized));
@@ -643,13 +684,22 @@ export default function JobsChecklistPage() {
                             `${minimizedTasks.length} tasks minimized` : 
                             "All tasks expanded"}
                     </div>
-                    <Button 
-                        type="primary" 
-                        size="small" 
-                        onClick={minimizedTasks.length > 0 ? handleExpandAllTasks : handleMinimizeAllTasks}
-                    >
-                        {minimizedTasks.length > 0 ? "Expand All Tasks" : "Minimize All Tasks"}
-                    </Button>
+                    <div>
+                        <Button 
+                            type="primary" 
+                            size="small" 
+                            onClick={minimizedTasks.length > 0 ? handleExpandAllTasks : handleMinimizeAllTasks}
+                            style={{ marginRight: "8px" }}
+                        >
+                            {minimizedTasks.length > 0 ? "Expand All Tasks" : "Minimize All Tasks"}
+                        </Button>
+                        <Button 
+                            size="small" 
+                            onClick={handleMinimizeCompletedTasks}
+                        >
+                            Minimize Completed
+                        </Button>
+                    </div>
                 </>)}
                 </div>
                 }
@@ -893,7 +943,7 @@ export default function JobsChecklistPage() {
                                                                     cursor: "pointer",
                                                                     width: "20px",
                                                                     height: "20px",
-                                                                    zIndex: 1200,
+                                                                    zIndex: 900,
                                                                     marginRight: "8px"
                                                                 }}
                                                                 onClick={(e) => e.stopPropagation()}
