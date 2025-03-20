@@ -783,7 +783,7 @@ export default function JobsChecklistPage() {
                                 }}>
                                     {/* Job cell */}
                                     <div style={{ 
-                                        width: "250px",
+                                        width: "200px",
                                         padding: "8px",
                                         position: "sticky",
                                         left: 0,
@@ -828,7 +828,7 @@ export default function JobsChecklistPage() {
                                         
                                         </div>
                                         <div><strong>Estimator:</strong> {estimator}</div>
-                                        <div><strong>Production Manager:</strong> {productionManager}</div>
+                                        <div><strong>PM:</strong> {productionManager}</div>
                                         
                                         <div style={{ 
                                             display: "flex", 
@@ -943,7 +943,7 @@ export default function JobsChecklistPage() {
                                                                     cursor: "pointer",
                                                                     width: "20px",
                                                                     height: "20px",
-                                                                    zIndex: 900,
+                                                                    // zIndex: 900,
                                                                     marginRight: "8px"
                                                                 }}
                                                                 onClick={(e) => e.stopPropagation()}
