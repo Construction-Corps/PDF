@@ -844,7 +844,7 @@ export default function JobsChecklistPage() {
                                                 options={{
                                                     touch: ['hold', 500], 
                                                     interactive: true,
-                                                    delay: [1500, 100]
+                                                    delay: [750, 100]
                                                 }}
                                             >
                                                 <div 
@@ -872,8 +872,14 @@ export default function JobsChecklistPage() {
                                                                 top: "0px",
                                                                 left: "2px",
                                                                 width: "6px",
+                                                                borderRadius: "3px",
                                                                 height: "95%",
-                                                                backgroundColor: taskTypeInfo?.color || '#444444',
+                                                                background: task.progress === 1 && isMinimized 
+                                                                    ? `linear-gradient(to bottom, 
+                                                                        black 0%, black 10%, 
+                                                                        white 10%, white 20%, 
+                                                                        ${taskTypeInfo?.color || '#555555'} 20%, ${taskTypeInfo?.color || '#555555'} 100%)`
+                                                                    : taskTypeInfo?.color || '#555555',
                                                                 cursor: 'pointer'
                                                             }}
                                                         />
@@ -896,6 +902,7 @@ export default function JobsChecklistPage() {
                                                                     cursor: "pointer",
                                                                     width: "20px",
                                                                     height: "20px",
+                                                                    zIndex: 1200,
                                                                     marginRight: "8px"
                                                                 }}
                                                                 onClick={(e) => e.stopPropagation()}
