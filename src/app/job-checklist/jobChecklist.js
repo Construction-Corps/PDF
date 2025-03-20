@@ -578,6 +578,90 @@ export default function JobsChecklistPage() {
             <JobStatusFilter 
                 onStatusChange={handleStatusChange} 
                 onSearchChange={handleSearchChange}
+                extraButtons={
+                    <div 
+                    style={{ 
+                        // margin: "10px 0", 
+                        padding: "2px", 
+                        paddingX: "8px",
+                        background: "#f0f8ff", 
+                        border: "1px solid #91d5ff",
+                        borderRadius: "4px",
+                        display: "flex",
+                        // position: "sticky",
+                        // top: "50px",
+                        // zIndex: 1000,
+                        justifyContent: "space-between",
+                        alignItems: "center"
+                    }}
+                    >
+                {selectedTasks.length > 0 ? (
+                    <>
+                        <span style={{ marginRight: "8px" }}>{selectedTasks.length} tasks selected</span>
+                        <div>
+                            <Button 
+                                type="primary" 
+                                size="small" 
+                                onClick={() => {
+                                    setMinimizedTasks(prev => {
+                                        const newMinimized = [...prev];
+                                        selectedTasks.forEach(task => {
+                                            if (!newMinimized.some(t => t.taskId === task.taskId && t.jobId === task.jobId)) {
+                                                newMinimized.push(task);
+                                            }
+                                        });
+                                        
+                                        localStorage.setItem('minimizedTasks', JSON.stringify(newMinimized));
+                                        return newMinimized;
+                                    });
+                                    setSelectedTasks([]);
+                                }}
+                                style={{ marginRight: "8px" }}
+                            >
+                                Minimize Selected (-)
+                            </Button>
+                            <Button 
+                                size="small" 
+                                onClick={() => {
+                                    setMinimizedTasks(prev => {
+                                        const newMinimized = prev.filter(t => 
+                                            !selectedTasks.some(st => st.taskId === t.taskId && st.jobId === t.jobId)
+                                        );
+                                        
+                                        localStorage.setItem('minimizedTasks', JSON.stringify(newMinimized));
+                                        return newMinimized;
+                                    });
+                                    setSelectedTasks([]);
+                                }}
+                            >
+                                Restore Selected (+)
+                            </Button>
+                            <Button 
+                                style={{ marginLeft: "8px" }}
+                                size="small" 
+                                onClick={() => setSelectedTasks([])}
+                            >
+                                Deselect All
+                            </Button>
+                        </div>
+                    </>
+                ): (
+                < >
+                    <div style={{ marginRight: "8px" }}>
+                        {minimizedTasks.length > 0 ? 
+                            `${minimizedTasks.length} tasks minimized` : 
+                            "All tasks expanded"}
+                    </div>
+                    <Button 
+                        type="primary" 
+                        size="small" 
+                        onClick={minimizedTasks.length > 0 ? handleExpandAllTasks : handleMinimizeAllTasks}
+                    >
+                        {minimizedTasks.length > 0 ? "Expand All Tasks" : "Minimize All Tasks"}
+                    </Button>
+                </>)}
+                </div>
+                }
             />
             
             {isolatedJobId && (
@@ -603,85 +687,7 @@ export default function JobsChecklistPage() {
             )}
             
             
-            <div style={{ 
-                    margin: "10px 0", 
-                    padding: "8px", 
-                    background: "#f0f8ff", 
-                    border: "1px solid #91d5ff",
-                    borderRadius: "4px",
-                    display: "flex",
-                    position: "sticky",
-                    top: "50px",
-                    zIndex: 1000,
-                    justifyContent: "space-between",
-                    alignItems: "center"
-                }}>
-            {selectedTasks.length > 0 ? (
-                <>
-                    <span>{selectedTasks.length} tasks selected</span>
-                    <div>
-                        <Button 
-                            type="primary" 
-                            size="small" 
-                            onClick={() => {
-                                setMinimizedTasks(prev => {
-                                    const newMinimized = [...prev];
-                                    selectedTasks.forEach(task => {
-                                        if (!newMinimized.some(t => t.taskId === task.taskId && t.jobId === task.jobId)) {
-                                            newMinimized.push(task);
-                                        }
-                                    });
-                                    
-                                    localStorage.setItem('minimizedTasks', JSON.stringify(newMinimized));
-                                    return newMinimized;
-                                });
-                                setSelectedTasks([]);
-                            }}
-                            style={{ marginRight: "8px" }}
-                        >
-                            Minimize Selected (-)
-                        </Button>
-                        <Button 
-                            size="small" 
-                            onClick={() => {
-                                setMinimizedTasks(prev => {
-                                    const newMinimized = prev.filter(t => 
-                                        !selectedTasks.some(st => st.taskId === t.taskId && st.jobId === t.jobId)
-                                    );
-                                    
-                                    localStorage.setItem('minimizedTasks', JSON.stringify(newMinimized));
-                                    return newMinimized;
-                                });
-                                setSelectedTasks([]);
-                            }}
-                        >
-                            Restore Selected (+)
-                        </Button>
-                        <Button 
-                            style={{ marginLeft: "8px" }}
-                            size="small" 
-                            onClick={() => setSelectedTasks([])}
-                        >
-                            Deselect All
-                        </Button>
-                    </div>
-                </>
-            ): (
-            < >
-                <div>
-                    {minimizedTasks.length > 0 ? 
-                        `${minimizedTasks.length} tasks minimized` : 
-                        "All tasks expanded"}
-                </div>
-                <Button 
-                    type="primary" 
-                    size="small" 
-                    onClick={minimizedTasks.length > 0 ? handleExpandAllTasks : handleMinimizeAllTasks}
-                >
-                    {minimizedTasks.length > 0 ? "Expand All Tasks" : "Minimize All Tasks"}
-                </Button>
-            </>)}
-            </div>
+            
             
             {loading ? (
                 <div>Loading Jobs...</div>
