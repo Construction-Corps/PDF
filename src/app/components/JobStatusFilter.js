@@ -87,7 +87,7 @@ const DEFAULT_SELECTIONS = [
 const STORAGE_KEY = 'jobStatusFilterSelections';
 const SEARCH_KEY = 'jobStatusFilterSearch';
 
-const JobStatusFilter = ({ onStatusChange, onSearchChange, initialSelections = null }) => {
+const JobStatusFilter = ({ onStatusChange, onSearchChange, initialSelections = null, extraButtons = null }) => {
   // Initialize from localStorage or fall back to defaults
   const [selectedStatuses, setSelectedStatuses] = useState(() => {
     if (typeof window !== 'undefined') {
@@ -185,6 +185,7 @@ const JobStatusFilter = ({ onStatusChange, onSearchChange, initialSelections = n
   
   return (
     <FilterContainer>
+      {extraButtons}
       <SearchInput
         placeholder="Search jobs..."
         value={searchTerm}
@@ -192,7 +193,7 @@ const JobStatusFilter = ({ onStatusChange, onSearchChange, initialSelections = n
         prefix={<SearchOutlined />}
       />
       <Dropdown 
-        overlay={menu} 
+        menu={menu} 
         trigger={['click']} 
         open={open}
         onOpenChange={setOpen}

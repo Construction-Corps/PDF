@@ -549,6 +549,28 @@ export default function JobsChecklistPage() {
         return selectedTasks.some(t => t.taskId === taskId && t.jobId === jobId);
     };
 
+    const handleExpandAllTasks = () => {
+        // Clear all minimized tasks
+        setMinimizedTasks([]);
+        // Save to localStorage
+        localStorage.setItem('minimizedTasks', JSON.stringify([]));
+    };
+    
+    const handleMinimizeAllTasks = () => {
+        // Collect all tasks from all jobs
+        const allTasks = jobs.flatMap(job => 
+            (job.tasks.nodes || []).map(task => ({ 
+                taskId: task.id, 
+                jobId: job.id 
+            }))
+        );
+        
+        // Set all tasks as minimized
+        setMinimizedTasks(allTasks);
+        // Save to localStorage
+        localStorage.setItem('minimizedTasks', JSON.stringify(allTasks));
+    };
+
     return (
         <div style={{ padding: "20px" }}>
             <h2>Jobs Checklist</h2>
@@ -580,8 +602,8 @@ export default function JobsChecklistPage() {
                 </div>
             )}
             
-            {selectedTasks.length > 0 && (
-                <div style={{ 
+            
+            <div style={{ 
                     margin: "10px 0", 
                     padding: "8px", 
                     background: "#f0f8ff", 
@@ -594,6 +616,8 @@ export default function JobsChecklistPage() {
                     justifyContent: "space-between",
                     alignItems: "center"
                 }}>
+            {selectedTasks.length > 0 ? (
+                <>
                     <span>{selectedTasks.length} tasks selected</span>
                     <div>
                         <Button 
@@ -633,9 +657,31 @@ export default function JobsChecklistPage() {
                         >
                             Restore Selected (+)
                         </Button>
+                        <Button 
+                            style={{ marginLeft: "8px" }}
+                            size="small" 
+                            onClick={() => setSelectedTasks([])}
+                        >
+                            Deselect All
+                        </Button>
                     </div>
+                </>
+            ): (
+            < >
+                <div>
+                    {minimizedTasks.length > 0 ? 
+                        `${minimizedTasks.length} tasks minimized` : 
+                        "All tasks expanded"}
                 </div>
-            )}
+                <Button 
+                    type="primary" 
+                    size="small" 
+                    onClick={minimizedTasks.length > 0 ? handleExpandAllTasks : handleMinimizeAllTasks}
+                >
+                    {minimizedTasks.length > 0 ? "Expand All Tasks" : "Minimize All Tasks"}
+                </Button>
+            </>)}
+            </div>
             
             {loading ? (
                 <div>Loading Jobs...</div>
@@ -706,14 +752,13 @@ export default function JobsChecklistPage() {
                                         }}>
 
 
-<div style={{ fontWeight: "bold" }}>{job.name}</div>
+                                            <div style={{ fontWeight: "bold" }}>{job.name}</div>
                                                         <Tooltip
                                                             title={isolatedJobId === job.id ? "Show all jobs" : "Isolate this job"}
                                                             options={{
                                                             touch: ['hold', 500],
                                                             placement: 'top'
-                                                        }}
-                                                        >
+                                                        }}>   
                                                         <div 
                                                             onClick={() => handleIsolateJob(job.id)}
                                                             style={{
@@ -793,6 +838,7 @@ export default function JobsChecklistPage() {
                                                 options={{
                                                     touch: ['hold', 500], 
                                                     interactive: true,
+                                                    delay: [1500, 100]
                                                 }}
                                             >
                                                 <div 
