@@ -28,6 +28,17 @@ export default function JobsChecklistPage() {
     const [loadingMore, setLoadingMore] = useState(false);
     const [searchTerm, setSearchTerm] = useState("");
     const [isolatedJobId, setIsolatedJobId] = useState(null);
+    const [selectedTasks, setSelectedTasks] = useState([]);
+    const [lastSelectedTask, setLastSelectedTask] = useState(null);
+    const [minimizedTasks, setMinimizedTasks] = useState(() => {
+        // Try to load minimized tasks from localStorage
+        try {
+            const saved = localStorage.getItem('minimizedTasks');
+            return saved ? JSON.parse(saved) : [];
+        } catch (e) {
+            return [];
+        }
+    });
     
     // Extract fetch jobs into a callback to avoid recreation on each render
     const fetchJobs = useCallback(async (statuses, pageToken = "", append = false) => {
@@ -397,6 +408,147 @@ export default function JobsChecklistPage() {
         };
     }, [loadMoreJobs]);
 
+    // Handle task selection with Shift key and Ctrl key support
+    const handleTaskSelect = (e, taskId, jobId) => {
+        // If Ctrl key is pressed, toggle minimization for this specific task
+        if (e.ctrlKey) {
+            e.preventDefault(); // Prevent default browser Ctrl+click behavior
+            
+            // Toggle minimization state for this task
+            setMinimizedTasks(prev => {
+                const isCurrentlyMinimized = prev.some(t => 
+                    t.taskId === taskId && t.jobId === jobId
+                );
+                
+                let newMinimized;
+                if (isCurrentlyMinimized) {
+                    // Remove from minimized if already minimized
+                    newMinimized = prev.filter(t => 
+                        !(t.taskId === taskId && t.jobId === jobId)
+                    );
+                } else {
+                    // Add to minimized if not minimized
+                    newMinimized = [...prev, { taskId, jobId }];
+                }
+                
+                // Save to localStorage
+                localStorage.setItem('minimizedTasks', JSON.stringify(newMinimized));
+                return newMinimized;
+            });
+            
+            return; // Exit early to prevent regular selection
+        }
+        
+        // If shift key is pressed and we have a last selected task
+        if (e.shiftKey && lastSelectedTask) {
+            const allTasks = jobs.flatMap(job => 
+                (job.tasks.nodes || []).map(task => ({ 
+                    taskId: task.id, 
+                    jobId: job.id 
+                }))
+            );
+            
+            // Find indices of current and last selected task
+            const currentIndex = allTasks.findIndex(t => t.taskId === taskId && t.jobId === jobId);
+            const lastIndex = allTasks.findIndex(t => 
+                t.taskId === lastSelectedTask.taskId && t.jobId === lastSelectedTask.jobId
+            );
+            
+            if (currentIndex !== -1 && lastIndex !== -1) {
+                // Get range of tasks between last selected and current
+                const start = Math.min(currentIndex, lastIndex);
+                const end = Math.max(currentIndex, lastIndex);
+                const tasksInRange = allTasks.slice(start, end + 1);
+                
+                // Add all tasks in range to selection
+                setSelectedTasks(prev => {
+                    const newSelection = [...prev];
+                    tasksInRange.forEach(t => {
+                        // Only add if not already selected
+                        if (!newSelection.some(st => st.taskId === t.taskId && st.jobId === t.jobId)) {
+                            newSelection.push(t);
+                        }
+                    });
+                    return newSelection;
+                });
+            }
+        } else {
+            // Toggle selection for individual task
+            setSelectedTasks(prev => {
+                const isSelected = prev.some(t => t.taskId === taskId && t.jobId === jobId);
+                
+                if (isSelected) {
+                    return prev.filter(t => !(t.taskId === taskId && t.jobId === jobId));
+                } else {
+                    return [...prev, { taskId, jobId }];
+                }
+            });
+        }
+        
+        // Update last selected task
+        setLastSelectedTask({ taskId, jobId });
+    };
+    
+    // Handle keyboard shortcuts
+    useEffect(() => {
+        const handleKeyDown = (e) => {
+            // Check for "-" key
+            if (e.key === '-' && selectedTasks.length > 0) {
+                // Minimize selected tasks
+                setMinimizedTasks(prev => {
+                    const newMinimized = [...prev];
+                    selectedTasks.forEach(task => {
+                        if (!newMinimized.some(t => t.taskId === task.taskId && t.jobId === task.jobId)) {
+                            newMinimized.push(task);
+                        }
+                    });
+                    
+                    // Save to localStorage
+                    localStorage.setItem('minimizedTasks', JSON.stringify(newMinimized));
+                    return newMinimized;
+                });
+                
+                // Clear selection after minimizing
+                setSelectedTasks([]);
+            }
+            
+            // Check for "+" key to restore minimized tasks
+            if (e.key === '+' && selectedTasks.length > 0) {
+                // Restore minimized tasks
+                setMinimizedTasks(prev => {
+                    const newMinimized = prev.filter(t => 
+                        !selectedTasks.some(st => st.taskId === t.taskId && st.jobId === t.jobId)
+                    );
+                    
+                    // Save to localStorage
+                    localStorage.setItem('minimizedTasks', JSON.stringify(newMinimized));
+                    return newMinimized;
+                });
+                
+                // Clear selection after restoring
+                setSelectedTasks([]);
+            }
+        };
+        
+        // Add event listener
+        window.addEventListener('keydown', handleKeyDown);
+        
+        // Clean up
+        return () => {
+            window.removeEventListener('keydown', handleKeyDown);
+        };
+    }, [selectedTasks]);
+    
+    // Check if a task is minimized
+    const isTaskMinimized = (taskId, jobId) => {
+        return minimizedTasks.some(t => t.taskId === taskId && t.jobId === jobId);
+    };
+    
+    // Check if a task is selected
+    const isTaskSelected = (taskId, jobId) => {
+        return selectedTasks.some(t => t.taskId === taskId && t.jobId === jobId);
+    };
+
     return (
         <div style={{ padding: "20px" }}>
             <h2>Jobs Checklist</h2>
@@ -428,76 +580,133 @@ export default function JobsChecklistPage() {
                 </div>
             )}
             
+            {selectedTasks.length > 0 && (
+                <div style={{ 
+                    margin: "10px 0", 
+                    padding: "8px", 
+                    background: "#f0f8ff", 
+                    border: "1px solid #91d5ff",
+                    borderRadius: "4px",
+                    display: "flex",
+                    position: "sticky",
+                    top: "50px",
+                    zIndex: 1000,
+                    justifyContent: "space-between",
+                    alignItems: "center"
+                }}>
+                    <span>{selectedTasks.length} tasks selected</span>
+                    <div>
+                        <Button 
+                            type="primary" 
+                            size="small" 
+                            onClick={() => {
+                                setMinimizedTasks(prev => {
+                                    const newMinimized = [...prev];
+                                    selectedTasks.forEach(task => {
+                                        if (!newMinimized.some(t => t.taskId === task.taskId && t.jobId === task.jobId)) {
+                                            newMinimized.push(task);
+                                        }
+                                    });
+                                    
+                                    localStorage.setItem('minimizedTasks', JSON.stringify(newMinimized));
+                                    return newMinimized;
+                                });
+                                setSelectedTasks([]);
+                            }}
+                            style={{ marginRight: "8px" }}
+                        >
+                            Minimize Selected (-)
+                        </Button>
+                        <Button 
+                            size="small" 
+                            onClick={() => {
+                                setMinimizedTasks(prev => {
+                                    const newMinimized = prev.filter(t => 
+                                        !selectedTasks.some(st => st.taskId === t.taskId && st.jobId === t.jobId)
+                                    );
+                                    
+                                    localStorage.setItem('minimizedTasks', JSON.stringify(newMinimized));
+                                    return newMinimized;
+                                });
+                                setSelectedTasks([]);
+                            }}
+                        >
+                            Restore Selected (+)
+                        </Button>
+                    </div>
+                </div>
+            )}
+            
             {loading ? (
                 <div>Loading Jobs...</div>
             ) : (
-                <div style={{ width: "100%" }}>
+                <div style={{ width: "100%", overflowX: "auto" }}>
                     <div style={{ 
-                        width: `${Math.max(1000, 250 + (filteredJobs.reduce((max, job) => 
-                            Math.max(max, (job.tasks.nodes || []).length), 0) * 150))}px`
+                        width: "max-content",
+                        minWidth: "100%"
                     }}>
-                        <table
-                            style={{
-                                width: "100%",
-                                borderCollapse: "collapse",
-                                marginTop: "16px",
-                                tableLayout: "fixed"
-                            }}
-                        >
-                            <thead>
-                                <tr style={{ textAlign: "left", borderBottom: "2px solid #f0f0f0" }}>
-                                    <th style={{ 
-                                        padding: "8px", 
-                                        position: "sticky", 
-                                        left: 0, 
+                        {/* Header row */}
+                        <div style={{ 
+                            display: "flex", 
+                            borderBottom: "2px solid #f0f0f0",
+                            fontWeight: "bold"
+                        }}>
+                            <div style={{ 
+                                width: "250px",
+                                padding: "8px",
+                                position: "sticky",
+                                left: 0,
+                                backgroundColor: "white",
+                                zIndex: 2,
+                                boxShadow: "inset -1px 0 0 #777"
+                            }}>
+                                Job
+                            </div>
+                            {/* Task headers will be implicit */}
+                        </div>
+                        
+                        {/* Job rows */}
+                        {filteredJobs.map(job => {
+                            const sortedTasks = sortTasksByStartDate(job.tasks.nodes || []);
+                            const isExpanded = expandedJobId === job.id;
+                            
+                            // Get job info
+                            const estimator = job.customFieldValues.nodes.find(node => 
+                                node.customField.name === "Estimator"
+                            )?.value || 'Not Assigned';
+                            
+                            const productionManager = job.customFieldValues.nodes.find(node => 
+                                node.customField.name === "Production Manager"
+                            )?.value || 'Not Assigned';
+                            
+                            const jobStatus = job.customFieldValues.nodes.find(node => 
+                                node.customField.name === "Stage"
+                            )?.value || 'Not Set';
+                            
+                            return (
+                                <div key={job.id} style={{ 
+                                    display: "flex",
+                                    borderBottom: "1px solid #777"
+                                }}>
+                                    {/* Job cell */}
+                                    <div style={{ 
+                                        width: "250px",
+                                        padding: "8px",
+                                        position: "sticky",
+                                        left: 0,
                                         backgroundColor: "white",
                                         zIndex: 2,
                                         boxShadow: "inset -1px 0 0 #777"
-                                    }}>Job</th>
-                                    {/* We will create columns dynamically per job, so no shared columns here */}
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {filteredJobs.map((job) => {
-                                    // Sort tasks by earliest startDate
-                                    const sortedTasks = sortTasksByStartDate(job.tasks.nodes || []);
-                                    const isExpanded = expandedJobId === job.id;
-                                    
-                                    // Get job info
-                                    const estimator = job.customFieldValues.nodes.find(node => 
-                                        node.customField.name === "Estimator"
-                                    )?.value || 'Not Assigned';
-                                    
-                                    const productionManager = job.customFieldValues.nodes.find(node => 
-                                        node.customField.name === "Production Manager"
-                                    )?.value || 'Not Assigned';
-                                    
-                                    const jobStatus = job.customFieldValues.nodes.find(node => 
-                                        node.customField.name === "Stage"
-                                    )?.value || 'Not Set';
-                                    
-                                    return (
-                                        <tr
-                                            key={job.id}
-                                            style={{ borderBottom: "1px solid #777", verticalAlign: "top" }}
-                                        >
-                                            {/* First cell: Simplified JobTile */}
-                                            <td style={{ 
-                                                padding: "8px", 
-                                                width: "250px",
-                                                position: "sticky",
-                                                left: 0,
-                                                backgroundColor: "white",
-                                                zIndex: 2,
-                                                boxShadow: "inset -1px 0 0 #777"
-                                            }}>
-                                                <div style={{ 
-                                                    display: "flex", 
-                                                    justifyContent: "space-between", 
-                                                    alignItems: "center",
-                                                    marginBottom: "5px"
-                                                }}>
-                                                    <div style={{ fontWeight: "bold" }}>{job.name}</div>
+                                    }}>
+                                        <div style={{ 
+                                            display: "flex", 
+                                            justifyContent: "space-between", 
+                                            alignItems: "center",
+                                            marginBottom: "5px"
+                                        }}>
+
+
+<div style={{ fontWeight: "bold" }}>{job.name}</div>
                                                         <Tooltip
                                                             title={isolatedJobId === job.id ? "Show all jobs" : "Isolate this job"}
                                                             options={{
@@ -523,133 +732,141 @@ export default function JobsChecklistPage() {
                                                             }
                                                         </div>
                                                     </Tooltip>
-                                                </div>
-                                                <div><strong>Estimator:</strong> {estimator}</div>
-                                                <div><strong>Production Manager:</strong> {productionManager}</div>
                                                 
-                                                <div style={{ 
-                                                    display: "flex", 
-                                                    alignItems: "center", 
-                                                    justifyContent: "space-between"
-                                                }}>
-                                                    <div><strong>Status:</strong> {jobStatus}</div>
-                                                    <div 
-                                                        onClick={() => toggleExpandJob(job.id)} 
-                                                        style={{ 
-                                                            cursor: "pointer", 
-                                                            padding: "4px",
-                                                            display: "flex",
-                                                            alignItems: "center" 
-                                                        }}
-                                                    >
-                                                        {isExpanded ? 
-                                                            <CaretDownOutlined /> : 
-                                                            <CaretRightOutlined />
-                                                        }
+                                        
+                                        </div>
+                                        <div><strong>Estimator:</strong> {estimator}</div>
+                                        <div><strong>Production Manager:</strong> {productionManager}</div>
+                                        
+                                        <div style={{ 
+                                            display: "flex", 
+                                            alignItems: "center", 
+                                            justifyContent: "space-between"
+                                        }}>
+                                            <div><strong>Status:</strong> {jobStatus}</div>
+                                            <div 
+                                                onClick={() => toggleExpandJob(job.id)} 
+                                                style={{ 
+                                                    cursor: "pointer", 
+                                                    padding: "4px",
+                                                    display: "flex",
+                                                    alignItems: "center" 
+                                                }}
+                                            >
+                                                {isExpanded ? 
+                                                    <CaretDownOutlined /> : 
+                                                    <CaretRightOutlined />
+                                                }
+                                            </div>
+                                        </div>
+                                        
+                                        {isExpanded && jobDetails[job.id] && (
+                                            <div style={{ marginTop: "10px" }}>
+                                                <JobTile 
+                                                    job={{
+                                                        ...job,
+                                                        ...jobDetails[job.id]
+                                                    }} 
+                                                    inlineStyle={true}
+                                                />
+                                            </div>
+                                        )}
+                                    </div>
+                                    
+                                    {/* Task cells */}
+                                    {sortedTasks.map(task => {
+                                        const taskTypeInfo = taskTypes.find(tt => tt.id === task?.taskType?.id);
+                                        const isMinimized = isTaskMinimized(task.id, job.id);
+                                        const isSelected = isTaskSelected(task.id, job.id);
+                                        
+                                        return (
+                                            <HTMLTooltip 
+                                                key={task.id}
+                                                html={`
+                                                    <div style="text-align: left">
+                                                        <strong>Name:</strong> ${task.name}<br>
+                                                        <strong>Description:</strong> ${task.description || 'No description'}<br>
+                                                        <strong>Start Date:</strong> ${dayjs(task.startDate).format('MM/DD/YYYY') || 'No start date'}<br>
+                                                        <strong>End Date:</strong> ${dayjs(task.endDate).format('MM/DD/YYYY') || 'No end date'}
                                                     </div>
-                                                </div>
-                                                
-                                                {isExpanded && jobDetails[job.id] && (
-                                                    <div style={{ marginTop: "10px" }}>
-                                                        <JobTile 
-                                                            job={{
-                                                                ...job,
-                                                                ...jobDetails[job.id]
-                                                            }} 
-                                                            inlineStyle={true}
-                                                        />
-                                                    </div>
-                                                )}
-                                            </td>
-                                            
-                                            {/* Each subsequent cell: a task with a checkbox */}
-                                            {sortedTasks.map((task) => {
-                                                const taskTypeInfo = taskTypes.find(tt => tt.id === task?.taskType?.id);
-                                                
-                                                return (
-                                                    <HTMLTooltip 
-                                                        key={task.id}
-                                                        html={`
-                                                            <div style="text-align: left">
-                                                                <strong>Name:</strong> ${task.name}<br>
-                                                                <strong>Description:</strong> ${task.description || 'No description'}<br>
-                                                                <strong>Start Date:</strong> ${dayjs(task.startDate).format('MM/DD/YYYY') || 'No start date'}<br>
-                                                                <strong>End Date:</strong> ${dayjs(task.endDate).format('MM/DD/YYYY') || 'No end date'}
-                                                            </div>
-                                                        `}
+                                                `}
+                                                options={{
+                                                    touch: ['hold', 500], 
+                                                    interactive: true,
+                                                }}
+                                            >
+                                                <div 
+                                                    style={{ 
+                                                        width: isMinimized ? "20px" : "150px",
+                                                        padding: isMinimized ? "0" : "8px",
+                                                        position: "relative",
+                                                        cursor: "pointer",
+                                                        backgroundColor: isSelected ? "rgba(24, 144, 255, 0.1)" : "transparent",
+                                                        transition: "width 0.3s"
+                                                    }}
+                                                    onClick={(e) => handleTaskSelect(e, task.id, job.id)}
+                                                >
+                                                    {/* Color bar tooltip */}
+                                                    <HTMLTooltip
+                                                        html={`<div>${taskTypeInfo?.name || 'No Type'}</div>`}
                                                         options={{
-                                                            touch: ['hold', 500], 
-                                                            interactive: true,
+                                                            touch: ['hold', 500],
+                                                            placement: 'top'
                                                         }}
                                                     >
-                                                        <td 
-                                                            style={{ 
-                                                                maxWidth: "100px", 
-                                                                lineHeight: "1.2",
-                                                                overflow: "hidden", 
-                                                                wordWrap: "break-word",
-                                                                padding: "8px", 
-                                                                whiteSpace: "wrap",
-                                                                position: "relative"
+                                                        <div 
+                                                            style={{
+                                                                position: "absolute",
+                                                                top: "0px",
+                                                                left: "2px",
+                                                                width: "6px",
+                                                                height: "95%",
+                                                                backgroundColor: taskTypeInfo?.color || '#444444',
+                                                                cursor: 'pointer'
                                                             }}
-                                                        >
-                                                            {/* Color bar tooltip */}
-                                                            <HTMLTooltip
-                                                                html={`<div>${taskTypeInfo?.name || 'No Type'}</div>`}
-                                                                options={{
-                                                                    touch: ['hold', 500],
-                                                                    placement: 'top'
+                                                        />
+                                                    </HTMLTooltip>
+                                                    
+                                                    {!isMinimized && (
+                                                        <div style={{ 
+                                                            display: 'flex',
+                                                            alignItems: 'flex-start',
+                                                            marginLeft: '12px'
+                                                        }}>
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={task.progress === 1}
+                                                                onChange={(e) => {
+                                                                    e.stopPropagation();
+                                                                    handleCheckboxChange(job.id, task.id, e.target.checked);
                                                                 }}
-                                                            >
-                                                                <div 
-                                                                    style={{
-                                                                        position: "absolute",
-                                                                        top: "0px",
-                                                                        left: "2px",
-                                                                        width: "6px",
-                                                                        height: "95%",
-                                                                        backgroundColor: taskTypeInfo?.color || '#444444',
-                                                                        cursor: 'pointer'
-                                                                    }}
-                                                                />
-                                                            </HTMLTooltip>
+                                                                style={{ 
+                                                                    cursor: "pointer",
+                                                                    width: "20px",
+                                                                    height: "20px",
+                                                                    marginRight: "8px"
+                                                                }}
+                                                                onClick={(e) => e.stopPropagation()}
+                                                            />
                                                             
                                                             <div style={{ 
-                                                                display: 'flex',
-                                                                alignItems: 'flex-start',
-                                                                marginLeft: '12px'
+                                                                whiteSpace: "normal",
+                                                                wordBreak: "break-word"
                                                             }}>
-                                                                {/* Checkbox in top left */}
-                                                                <input
-                                                                    type="checkbox"
-                                                                    checked={task.progress === 1}
-                                                                    onChange={(e) => handleCheckboxChange(job.id, task.id, e.target.checked)}
-                                                                    style={{ 
-                                                                        cursor: "pointer",
-                                                                        width: "20px",
-                                                                        height: "20px",
-                                                                        marginRight: "8px"
-                                                                    }}
-                                                                    onClick={(e) => e.stopPropagation()}
-                                                                />
-                                                                
-                                                                {/* Task name to the right of checkbox */}
-                                                                <div>
-                                                                    {task.name}
-                                                                </div>
+                                                                {task.name}
                                                             </div>
-                                                        </td>
-                                                    </HTMLTooltip>
-                                                );
-                                            })}
-                                        </tr>
-                                    );
-                                })}
-                            </tbody>
-                        </table>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </HTMLTooltip>
+                                        );
+                                    })}
+                                </div>
+                            );
+                        })}
                     </div>
                     
-                    {/* Show loading indicator at the bottom when fetching more jobs */}
+                    {/* Loading indicators */}
                     {loadingMore && (
                         <div style={{ textAlign: 'center', padding: '20px' }}>
                             Loading more jobs...
