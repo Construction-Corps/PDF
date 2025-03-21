@@ -894,7 +894,7 @@ export default function JobsChecklistPage() {
                                                         padding: isMinimized ? "0" : "8px",
                                                         position: "relative",
                                                         cursor: "pointer",
-                                                        backgroundColor: isSelected ? "rgba(24, 144, 255, 0.1)" : "transparent",
+                                                        backgroundColor: task.progress === 1 ? (isSelected ? "rgba(15, 83, 148, 0.1)" : "rgba(111, 124, 130, 0.1)" ) : (isSelected ? "rgba(24, 144, 255, 0.1)" : "transparent"),
                                                         transition: "width 0.3s"
                                                     }}
                                                     onClick={(e) => handleTaskSelect(e, task.id, job.id)}
@@ -915,12 +915,17 @@ export default function JobsChecklistPage() {
                                                                 width: "6px",
                                                                 borderRadius: "3px",
                                                                 height: "95%",
-                                                                background: task.progress === 1 && isMinimized 
-                                                                    ? `linear-gradient(to bottom, 
-                                                                        black 0%, black 10%, 
-                                                                        white 10%, white 20%, 
-                                                                        ${taskTypeInfo?.color || '#555555'} 20%, ${taskTypeInfo?.color || '#555555'} 100%)`
-                                                                    : taskTypeInfo?.color || '#555555',
+                                                                backgroundColor: task.progress === 1
+                                                                ? `${taskTypeInfo?.color || '#555555'}80` // 50% opacity for completed tasks
+                                                                : taskTypeInfo?.color || '#555555',
+                                                                // background: task.progress === 1 && isMinimized 
+                                                                //     ? `linear-gradient(to bottom, 
+                                                                //         black 0%, black 10%, 
+                                                                //         white 10%, white 20%, 
+                                                                //         ${taskTypeInfo?.color || '#555555'} 20%, ${taskTypeInfo?.color || '#555555'} 100%)`
+                                                                //     : task.progress === 1
+                                                                //         ? `${taskTypeInfo?.color || '#555555'}80` // 50% opacity for completed tasks
+                                                                //         : taskTypeInfo?.color || '#555555',
                                                                 cursor: 'pointer'
                                                             }}
                                                         />
