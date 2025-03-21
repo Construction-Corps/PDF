@@ -3,9 +3,10 @@ import { fetchJobTread } from "../../utils/JobTreadApi";
 import { HTMLTooltip } from "../components/formatters/fields";
 import JobStatusFilter from "../components/JobStatusFilter";
 import JobTile from "../components/JobTile";
-import { CaretRightOutlined, CaretDownOutlined, VerticalAlignMiddleOutlined, ArrowsAltOutlined   } from "@ant-design/icons";
+import { CaretRightOutlined, CaretDownOutlined, VerticalAlignMiddleOutlined, ArrowsAltOutlined, LinkOutlined, ExportOutlined } from "@ant-design/icons";
 import dayjs from 'dayjs';
 import { Button, Tooltip } from 'antd';
+import JobFieldEditors from '../components/JobFieldEditors';
 
 
 // Helper for sorting tasks by startDate
@@ -39,6 +40,14 @@ export default function JobsChecklistPage() {
             return [];
         }
     });
+    
+    // Add state for field options
+    const [fieldOptions, setFieldOptions] = useState({
+        estimatorOptions: [],
+        stageOptions: [],
+        managerOptions: []
+    });
+    const [loadingFieldOptions, setLoadingFieldOptions] = useState(true);
     
     // Extract fetch jobs into a callback to avoid recreation on each render
     const fetchJobs = useCallback(async (statuses, pageToken = "", append = false) => {
@@ -603,6 +612,12 @@ export default function JobsChecklistPage() {
         });
     };
 
+    // Handler for when field options are loaded
+    const handleFieldOptionsLoaded = useCallback((options) => {
+        setFieldOptions(options);
+        setLoadingFieldOptions(false);
+    }, []);
+
     return (
         <div style={{ padding: "20px" }}>
             <h2>Jobs Checklist</h2>
@@ -610,6 +625,7 @@ export default function JobsChecklistPage() {
             <JobStatusFilter 
                 onStatusChange={handleStatusChange} 
                 onSearchChange={handleSearchChange}
+                onFieldOptionsLoaded={handleFieldOptionsLoaded}
                 extraButtons={
                     <div 
                     style={{ 
@@ -797,52 +813,93 @@ export default function JobsChecklistPage() {
                                             alignItems: "center",
                                             marginBottom: "5px"
                                         }}>
-
-
                                             <div style={{ fontWeight: "bold" }}>{job.name}</div>
-                                                        <Tooltip
-                                                            title={isolatedJobId === job.id ? "Show all jobs" : "Isolate this job"}
-                                                            options={{
-                                                            touch: ['hold', 500],
-                                                            placement: 'top'
-                                                        }}>   
-                                                        <div 
-                                                            onClick={() => handleIsolateJob(job.id)}
-                                                            style={{
-                                                                cursor: "pointer",
-                                                                padding: "2px 5px",
-                                                                borderRadius: "3px",
-                                                                background: isolatedJobId === job.id ? "#1890ff" : "#f0f0f0",
-                                                                color: isolatedJobId === job.id ? "white" : "#555"
-                                                            }}
-                                                            
-                                                        >
-                                                            {isolatedJobId === job.id ? 
-                                                                <ArrowsAltOutlined />
-                                                                :
-                                                                <VerticalAlignMiddleOutlined />
-                                                            }
-                                                        </div>
-                                                    </Tooltip>
+                                            <div style={{ display: "flex" }}>
+                                            <Tooltip
+                                                    title="Open in JobTread"
+                                                    options={{
+                                                    touch: ['hold', 500],
+                                                    placement: 'top'
+                                                }}>   
+                                                    <div 
+                                                        onClick={() => window.open(`https://app.jobtread.com/jobs/${job.id}`, '_blank')}
+                                                        style={{
+                                                            cursor: "pointer",
+                                                            padding: "2px 5px",
+                                                            borderRadius: "3px",
+                                                            // background: "#f0f0f0",
+                                                            color: "#555",
+                                                        }}
+                                                    >
+                                                        <ExportOutlined />
+                                                    </div>
+                                                </Tooltip>
+                                                <Tooltip
+                                                    title={isolatedJobId === job.id ? "Show all jobs" : "Isolate this job"}
+                                                    options={{
+                                                    touch: ['hold', 500],
+                                                    placement: 'top'
+                                                }}>   
+                                                    <div 
+                                                        onClick={() => handleIsolateJob(job.id)}
+                                                        style={{
+                                                            cursor: "pointer",
+                                                            padding: "2px 5px",
+                                                            borderRadius: "3px",
+                                                            background: isolatedJobId === job.id ? "#1890ff" : "transparent",
+                                                            color: isolatedJobId === job.id ? "white" : "#555"
+                                                        }}
+                                                    >
+                                                        {isolatedJobId === job.id ? 
+                                                            <ArrowsAltOutlined />
+                                                            :
+                                                            <VerticalAlignMiddleOutlined />
+                                                        }
+                                                    </div>
+                                                </Tooltip>
                                                 
-                                        
+                                            </div>
                                         </div>
-                                        <div><strong>Estimator:</strong> {estimator}</div>
-                                        <div><strong>PM:</strong> {productionManager}</div>
+                                        
+                                        <JobFieldEditors 
+                                            jobId={job.id}
+                                            initialValues={{
+                                                estimator: estimator,
+                                                stage: jobStatus,
+                                                manager: productionManager
+                                            }}
+                                            fieldOptions={fieldOptions}
+                                            isLoadingOptions={loadingFieldOptions}
+                                            onFieldUpdate={(updatedJob) => {
+                                                // Handle the updated job data - refresh the job in the list
+                                                setJobs(prevJobs => 
+                                                    prevJobs.map(j => 
+                                                        j.id === job.id ? {
+                                                            ...j,
+                                                            customFieldValues: {
+                                                                ...j.customFieldValues,
+                                                                nodes: updatedJob.customFieldValues.nodes
+                                                            }
+                                                        } : j
+                                                    )
+                                                );
+                                            }}
+                                        />
                                         
                                         <div style={{ 
+                                            marginTop: "-10px",
                                             display: "flex", 
                                             alignItems: "center", 
-                                            justifyContent: "space-between"
+                                            justifyContent: "flex-end"
                                         }}>
-                                            <div><strong>Status:</strong> {jobStatus}</div>
                                             <div 
                                                 onClick={() => toggleExpandJob(job.id)} 
                                                 style={{ 
                                                     cursor: "pointer", 
                                                     padding: "4px",
                                                     display: "flex",
-                                                    alignItems: "center" 
+                                                    alignItems: "center",
+                                                    marginTop: "5px"
                                                 }}
                                             >
                                                 {isExpanded ? 
@@ -894,7 +951,7 @@ export default function JobsChecklistPage() {
                                                         padding: isMinimized ? "0" : "8px",
                                                         position: "relative",
                                                         cursor: "pointer",
-                                                        backgroundColor: task.progress === 1 ? (isSelected ? "rgba(15, 83, 148, 0.1)" : "rgba(111, 124, 130, 0.1)" ) : (isSelected ? "rgba(24, 144, 255, 0.1)" : "transparent"),
+                                                        backgroundColor: task.progress === 1 ? (isSelected ? "rgba(15, 83, 148, 0.1)" : "rgba(82, 97, 103, 0.1)" ) : (isSelected ? "rgba(24, 144, 255, 0.1)" : "transparent"),
                                                         transition: "width 0.3s"
                                                     }}
                                                     onClick={(e) => handleTaskSelect(e, task.id, job.id)}
@@ -918,14 +975,6 @@ export default function JobsChecklistPage() {
                                                                 backgroundColor: task.progress === 1
                                                                 ? `${taskTypeInfo?.color || '#555555'}80` // 50% opacity for completed tasks
                                                                 : taskTypeInfo?.color || '#555555',
-                                                                // background: task.progress === 1 && isMinimized 
-                                                                //     ? `linear-gradient(to bottom, 
-                                                                //         black 0%, black 10%, 
-                                                                //         white 10%, white 20%, 
-                                                                //         ${taskTypeInfo?.color || '#555555'} 20%, ${taskTypeInfo?.color || '#555555'} 100%)`
-                                                                //     : task.progress === 1
-                                                                //         ? `${taskTypeInfo?.color || '#555555'}80` // 50% opacity for completed tasks
-                                                                //         : taskTypeInfo?.color || '#555555',
                                                                 cursor: 'pointer'
                                                             }}
                                                         />
@@ -948,7 +997,6 @@ export default function JobsChecklistPage() {
                                                                     cursor: "pointer",
                                                                     width: "20px",
                                                                     height: "20px",
-                                                                    // zIndex: 900,
                                                                     marginRight: "8px"
                                                                 }}
                                                                 onClick={(e) => e.stopPropagation()}
