@@ -98,6 +98,7 @@ const JobStatusFilter = ({
       } catch (e) {
         console.error('Error reading from localStorage', e);
       }
+
     }
     return initialSelections || DEFAULT_SELECTIONS;
   });
@@ -290,3 +291,4 @@ const JobStatusFilter = ({
 };
 
 export default JobStatusFilter;
+

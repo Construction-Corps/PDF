@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Select, Spin } from 'antd';
-import { fetchJobTread } from '@/utils/JobTreadApi';
+import { fetchJobTread, updateJobTread } from '@/utils/JobTreadApi';
 
 const { Option } = Select;
 
@@ -66,7 +66,7 @@ const JobFieldEditors = ({
         }
       };
       
-      const result = await fetchJobTread(query);
+      const result = await updateJobTread(query);
       
       if (result?.updateJob?.job) {
         onFieldUpdate && onFieldUpdate(result.updateJob.job);
