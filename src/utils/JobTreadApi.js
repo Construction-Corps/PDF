@@ -55,6 +55,7 @@ const _callJobTreadApi = async (customQuery, options = {}) => {
     }
     
     if (showSuccessMessage) {
+      console.log("Success message:");
       toast.success(successMessage);
     }
     

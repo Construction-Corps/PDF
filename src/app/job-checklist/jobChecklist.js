@@ -902,6 +902,15 @@ export default function JobsChecklistPage() {
                                                     marginTop: "-12px"
                                                 }}
                                             >
+
+                                                <Button
+                                                    onClick={() => toast.info("This feature is not available yet")} 
+                                                    style={{ 
+                                                        cursor: "pointer", 
+                                                        padding: "4px",
+                                                    }}
+                                                >
+                                                </Button>
                                                 {isExpanded ? 
                                                     <CaretDownOutlined /> : 
                                                     <CaretRightOutlined />
