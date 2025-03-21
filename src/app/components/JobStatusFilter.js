@@ -64,20 +64,18 @@ const ESTIMATOR_FIELD_ID = "22NwWybgjBTW";
 const STAGE_FIELD_ID = "22NwzQcjYUA4";
 const MANAGER_FIELD_ID = "22P2ZNybRiyG";
 
-// localStorage keys for different filter selections
+// localStorage key for status selections
 const STORAGE_KEY = 'jobStatusFilterSelections';
-const ESTIMATOR_STORAGE_KEY = 'jobEstimatorFilterSelections';
-const MANAGER_STORAGE_KEY = 'jobManagerFilterSelections';
 const SEARCH_KEY = 'jobStatusFilterSearch';
 
 const JobStatusFilter = ({ 
   onStatusChange, 
   onSearchChange, 
-  onFieldOptionsLoaded,
+  onFieldOptionsLoaded, // New prop to pass options to parent
   initialSelections = null, 
   extraButtons = null 
 }) => {
-  // State for all available options
+  // State for all available statuses
   const [allStatuses, setAllStatuses] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -89,7 +87,7 @@ const JobStatusFilter = ({
     managerOptions: []
   });
   
-  // Initialize status selections from localStorage or defaults
+  // Initialize from localStorage or fall back to defaults
   const [selectedStatuses, setSelectedStatuses] = useState(() => {
     if (typeof window !== 'undefined') {
       try {
@@ -102,36 +100,6 @@ const JobStatusFilter = ({
       }
     }
     return initialSelections || DEFAULT_SELECTIONS;
-  });
-  
-  // Initialize estimator selections
-  const [selectedEstimators, setSelectedEstimators] = useState(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const stored = localStorage.getItem(ESTIMATOR_STORAGE_KEY);
-        if (stored) {
-          return JSON.parse(stored);
-        }
-      } catch (e) {
-        console.error('Error reading from localStorage', e);
-      }
-    }
-    return [];
-  });
-  
-  // Initialize manager selections
-  const [selectedManagers, setSelectedManagers] = useState(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const stored = localStorage.getItem(MANAGER_STORAGE_KEY);
-        if (stored) {
-          return JSON.parse(stored);
-        }
-      } catch (e) {
-        console.error('Error reading from localStorage', e);
-      }
-    }
-    return [];
   });
   
   // Initialize search term from localStorage
@@ -226,19 +194,13 @@ const JobStatusFilter = ({
     if (typeof window !== 'undefined') {
       try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(selectedStatuses));
-        localStorage.setItem(ESTIMATOR_STORAGE_KEY, JSON.stringify(selectedEstimators));
-        localStorage.setItem(MANAGER_STORAGE_KEY, JSON.stringify(selectedManagers));
       } catch (e) {
         console.error('Error writing to localStorage', e);
       }
     }
-    // Notify parent component with all selections
-    onStatusChange({
-      statuses: selectedStatuses,
-      estimators: selectedEstimators,
-      managers: selectedManagers
-    });
-  }, [selectedStatuses, selectedEstimators, selectedManagers, onStatusChange]);
+    // Notify parent component
+    onStatusChange(selectedStatuses);
+  }, [selectedStatuses, onStatusChange]);
   
   // Update localStorage when search term changes
   useEffect(() => {
@@ -265,65 +227,20 @@ const JobStatusFilter = ({
     });
   };
   
-  const handleEstimatorToggle = (estimator) => {
-    setSelectedEstimators(prev => {
-      if (prev.includes(estimator)) {
-        return prev.filter(e => e !== estimator);
-      } else {
-        return [...prev, estimator];
-      }
-    });
+  const handleSelectAll = () => {
+    setSelectedStatuses([...allStatuses]);
   };
   
-  const handleManagerToggle = (manager) => {
-    setSelectedManagers(prev => {
-      if (prev.includes(manager)) {
-        return prev.filter(m => m !== manager);
-      } else {
-        return [...prev, manager];
-      }
-    });
-  };
-  
-  const handleSelectAll = (field) => {
-    switch (field) {
-      case 'status':
-        setSelectedStatuses([...allStatuses]);
-        break;
-      case 'estimator':
-        setSelectedEstimators([...fieldOptions.estimatorOptions]);
-        break;
-      case 'manager':
-        setSelectedManagers([...fieldOptions.managerOptions]);
-        break;
-      default:
-        break;
-    }
-  };
-  
-  const handleClearAll = (field) => {
-    switch (field) {
-      case 'status':
-        setSelectedStatuses([]);
-        break;
-      case 'estimator':
-        setSelectedEstimators([]);
-        break;
-      case 'manager':
-        setSelectedManagers([]);
-        break;
-      default:
-        break;
-    }
+  const handleClearAll = () => {
+    setSelectedStatuses([]);
   };
   
   const handleSearchChange = (e) => {
     setSearchTerm(e.target.value);
   };
   
-  // Get total selected filters count
-  const totalSelectedFilters = selectedStatuses.length + selectedEstimators.length + selectedManagers.length;
-  
+  // Using the original dropdown approach without Ant Design Menu
+  // This should work with current Ant Design versions
   return (
     <FilterContainer>
       {extraButtons}
@@ -335,75 +252,29 @@ const JobStatusFilter = ({
       />
       <Dropdown 
         overlay={
-          <FilterMenu style={{ width: 'auto', minWidth: '300px' }}>
-            {/* Stages (Status) Filter Section */}
-            <div style={{ marginBottom: '16px' }}>
-              <div style={{ fontWeight: 'bold', marginBottom: '8px' }}>Job Stage</div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                <Button size="small" onClick={() => handleSelectAll('status')}>Select All</Button>
-                <Button size="small" onClick={() => handleClearAll('status')}>Clear All</Button>
-              </div>
-              <div style={{ maxHeight: '150px', overflowY: 'auto', border: '1px solid #f0f0f0', padding: '4px' }}>
-                {loading ? (
-                  <div style={{ display: 'flex', justifyContent: 'center', padding: '20px' }}>
-                    <Spin size="small" />
-                  </div>
-                ) : (
-                  allStatuses.map(status => (
-                    <FilterOption key={status} onClick={() => handleStatusToggle(status)}>
-                      <Checkbox checked={selectedStatuses.includes(status)} style={{ marginRight: '8px' }} />
-                      {status}
-                    </FilterOption>
-                  ))
-                )}
-              </div>
+          <FilterMenu>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+              <Button size="small" onClick={handleSelectAll}>Select All</Button>
+              <Button size="small" onClick={handleClearAll}>Clear All</Button>
             </div>
+            <div style={{ borderBottom: '1px solid #f0f0f0', marginBottom: '8px' }}></div>
             
-            {/* Estimator Filter Section */}
-            <div style={{ marginBottom: '16px' }}>
-              <div style={{ fontWeight: 'bold', marginBottom: '8px' }}>Estimator</div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                <Button size="small" onClick={() => handleSelectAll('estimator')}>Select All</Button>
-                <Button size="small" onClick={() => handleClearAll('estimator')}>Clear All</Button>
+            {loading ? (
+              <div style={{ display: 'flex', justifyContent: 'center', padding: '20px' }}>
+                <Spin size="small" />
               </div>
-              <div style={{ maxHeight: '150px', overflowY: 'auto', border: '1px solid #f0f0f0', padding: '4px' }}>
-                {loading ? (
-                  <div style={{ display: 'flex', justifyContent: 'center', padding: '20px' }}>
-                    <Spin size="small" />
-                  </div>
-                ) : (
-                  fieldOptions.estimatorOptions.map(estimator => (
-                    <FilterOption key={estimator} onClick={() => handleEstimatorToggle(estimator)}>
-                      <Checkbox checked={selectedEstimators.includes(estimator)} style={{ marginRight: '8px' }} />
-                      {estimator}
-                    </FilterOption>
-                  ))
-                )}
+            ) : error ? (
+              <div style={{ padding: '10px', color: 'red' }}>
+                Error loading statuses. Using defaults.
               </div>
-            </div>
-            
-            {/* Manager Filter Section */}
-            <div>
-              <div style={{ fontWeight: 'bold', marginBottom: '8px' }}>Production Manager</div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                <Button size="small" onClick={() => handleSelectAll('manager')}>Select All</Button>
-                <Button size="small" onClick={() => handleClearAll('manager')}>Clear All</Button>
-              </div>
-              <div style={{ maxHeight: '150px', overflowY: 'auto', border: '1px solid #f0f0f0', padding: '4px' }}>
-                {loading ? (
-                  <div style={{ display: 'flex', justifyContent: 'center', padding: '20px' }}>
-                    <Spin size="small" />
-                  </div>
-                ) : (
-                  fieldOptions.managerOptions.map(manager => (
-                    <FilterOption key={manager} onClick={() => handleManagerToggle(manager)}>
-                      <Checkbox checked={selectedManagers.includes(manager)} style={{ marginRight: '8px' }} />
-                      {manager}
-                    </FilterOption>
-                  ))
-                )}
-              </div>
-            </div>
+            ) : (
+              allStatuses.map(status => (
+                <FilterOption key={status} onClick={() => handleStatusToggle(status)}>
+                  <Checkbox checked={selectedStatuses.includes(status)} style={{ marginRight: '8px' }} />
+                  {status}
+                </FilterOption>
+              ))
+            )}
           </FilterMenu>
         }
         trigger={['click']} 
@@ -411,7 +282,7 @@ const JobStatusFilter = ({
         onVisibleChange={setOpen}
       >
         <FilterButton onClick={() => setOpen(!open)}>
-          Filter ({totalSelectedFilters})
+          Filter by Status ({selectedStatuses.length})
         </FilterButton>
       </Dropdown>
     </FilterContainer>

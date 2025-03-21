@@ -899,7 +899,7 @@ export default function JobsChecklistPage() {
                                                     padding: "4px",
                                                     display: "flex",
                                                     alignItems: "center",
-                                                    marginTop: "5px"
+                                                    marginTop: "-12px"
                                                 }}
                                             >
                                                 {isExpanded ? 

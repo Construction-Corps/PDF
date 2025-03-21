@@ -48,21 +48,21 @@ const JobFieldEditors = ({
               [fieldId]: value
             }
           },
-          "job": {
-            "$": { "id": jobId,
-                size:100
-             },
-            "id": {},
-            "customFieldValues": {
-              "nodes": {
-                "customField": {
-                  "id": {},
-                  "name": {}
-                },
-                "value": {}
-              }
-            }
-          }
+        //   "job": {
+        //     "$": { "id": jobId,
+        //         size:100
+        //      },
+        //     "id": {},
+        //     "customFieldValues": {
+        //       "nodes": {
+        //         "customField": {
+        //           "id": {},
+        //           "name": {}
+        //         },
+        //         "value": {}
+        //       }
+        //     }
+        //   }
         }
       };
       
