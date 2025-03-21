@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import styled from 'styled-components';
-import { Dropdown, Checkbox, Button, Input, Spin } from 'antd';
-import { SearchOutlined } from '@ant-design/icons';
+import { Dropdown, Checkbox, Button, Input, Spin, Select } from 'antd';
+import { SearchOutlined, ArrowUpOutlined, ArrowDownOutlined } from '@ant-design/icons';
 import { fetchJobTread } from '@/utils/JobTreadApi';
 
 const FilterContainer = styled.div`
@@ -50,6 +50,33 @@ const SearchInput = styled(Input)`
   border-radius: 4px;
 `;
 
+const FilterPanel = styled.div`
+  background: white;
+  border-radius: 4px;
+  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.16);
+  padding: 16px;
+  width: 700px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+`;
+
+const FilterRow = styled.div`
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+`;
+
+const FilterSection = styled.div`
+  flex: 1;
+  min-width: 200px;
+`;
+
+const SectionTitle = styled.div`
+  font-weight: 500;
+  margin-bottom: 8px;
+`;
+
 // Default selections that match current JobChecklist
 const DEFAULT_SELECTIONS = [
   "Job Started 🔨",
@@ -68,10 +95,17 @@ const MANAGER_FIELD_ID = "22P2ZNybRiyG";
 const STORAGE_KEY = 'jobStatusFilterSelections';
 const SEARCH_KEY = 'jobStatusFilterSearch';
 
+// Add localStorage keys for new filters
+const ESTIMATOR_KEY = 'jobEstimatorFilterSelections';
+const MANAGER_KEY = 'jobManagerFilterSelections';
+const SORT_KEY = 'jobSortSelection';
+
 const JobStatusFilter = ({ 
   onStatusChange, 
   onSearchChange, 
-  onFieldOptionsLoaded, // New prop to pass options to parent
+  onFieldOptionsLoaded,
+  onSortChange, // New prop for sorting
+  onFiltersChange, // New prop for combined filter changes
   initialSelections = null, 
   extraButtons = null 
 }) => {
@@ -115,7 +149,68 @@ const JobStatusFilter = ({
     return "";
   });
   
+  // Add new state for estimator and manager filters
+  const [selectedEstimators, setSelectedEstimators] = useState(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const stored = localStorage.getItem(ESTIMATOR_KEY);
+        if (stored) return JSON.parse(stored);
+      } catch (e) {
+        console.error('Error reading from localStorage', e);
+      }
+    }
+    return [];
+  });
+  
+  const [selectedManagers, setSelectedManagers] = useState(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const stored = localStorage.getItem(MANAGER_KEY);
+        if (stored) return JSON.parse(stored);
+      } catch (e) {
+        console.error('Error reading from localStorage', e);
+      }
+    }
+    return [];
+  });
+  
+  // Add sort state
+  const [sortOption, setSortOption] = useState(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const stored = localStorage.getItem(SORT_KEY);
+        if (stored) return JSON.parse(stored);
+      } catch (e) {
+        console.error('Error reading from localStorage', e);
+      }
+    }
+    return { field: "createdAt", order: "desc" };
+  });
+  
   const [open, setOpen] = useState(false);
+  
+  // Setup debounce function for filter changes
+  const debouncedFilterChange = useCallback(
+    debounce(() => {
+      const filters = {
+        statuses: selectedStatuses,
+        estimators: selectedEstimators,
+        managers: selectedManagers,
+        search: searchTerm,
+        sort: sortOption
+      };
+      
+      if (onFiltersChange) {
+        onFiltersChange(filters);
+      }
+      
+      // Also call individual handlers for backward compatibility
+      if (onStatusChange) onStatusChange(selectedStatuses);
+      if (onSearchChange) onSearchChange(searchTerm);
+      if (onSortChange) onSortChange(sortOption);
+    }, 500),
+    [selectedStatuses, selectedEstimators, selectedManagers, searchTerm, sortOption]
+  );
   
   // Fetch all field options in one call
   const fetchAllFieldOptions = useCallback(async () => {
@@ -190,20 +285,23 @@ const JobStatusFilter = ({
     fetchAllFieldOptions();
   }, [fetchAllFieldOptions]);
   
-  // Update localStorage when selections change
+  // Update localStorage and trigger changes when filters change
   useEffect(() => {
     if (typeof window !== 'undefined') {
       try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(selectedStatuses));
+        localStorage.setItem(ESTIMATOR_KEY, JSON.stringify(selectedEstimators));
+        localStorage.setItem(MANAGER_KEY, JSON.stringify(selectedManagers));
+        localStorage.setItem(SORT_KEY, JSON.stringify(sortOption));
       } catch (e) {
         console.error('Error writing to localStorage', e);
       }
     }
-    // Notify parent component
-    onStatusChange(selectedStatuses);
-  }, [selectedStatuses, onStatusChange]);
+    
+    debouncedFilterChange();
+  }, [selectedStatuses, selectedEstimators, selectedManagers, sortOption, debouncedFilterChange]);
   
-  // Update localStorage when search term changes
+  // Update search separately
   useEffect(() => {
     if (typeof window !== 'undefined') {
       try {
@@ -212,83 +310,180 @@ const JobStatusFilter = ({
         console.error('Error writing search to localStorage', e);
       }
     }
-    // Notify parent component
-    if (onSearchChange) {
-      onSearchChange(searchTerm);
-    }
-  }, [searchTerm, onSearchChange]);
+    
+    debouncedFilterChange();
+  }, [searchTerm, debouncedFilterChange]);
   
+  // Toggle handlers for each filter type
   const handleStatusToggle = (status) => {
-    setSelectedStatuses(prev => {
-      if (prev.includes(status)) {
-        return prev.filter(s => s !== status);
-      } else {
-        return [...prev, status];
-      }
-    });
+    setSelectedStatuses(prev => 
+      prev.includes(status) 
+        ? prev.filter(s => s !== status) 
+        : [...prev, status]
+    );
   };
   
-  const handleSelectAll = () => {
-    setSelectedStatuses([...allStatuses]);
+  const handleEstimatorToggle = (estimator) => {
+    setSelectedEstimators(prev => 
+      prev.includes(estimator) 
+        ? prev.filter(e => e !== estimator) 
+        : [...prev, estimator]
+    );
   };
   
-  const handleClearAll = () => {
-    setSelectedStatuses([]);
+  const handleManagerToggle = (manager) => {
+    setSelectedManagers(prev => 
+      prev.includes(manager) 
+        ? prev.filter(m => m !== manager) 
+        : [...prev, manager]
+    );
   };
   
-  const handleSearchChange = (e) => {
-    setSearchTerm(e.target.value);
+  // Sort option handlers
+  const handleSortFieldChange = (field) => {
+    setSortOption(prev => ({ ...prev, field }));
   };
   
-  // Using the original dropdown approach without Ant Design Menu
-  // This should work with current Ant Design versions
+  const handleSortOrderToggle = () => {
+    setSortOption(prev => ({ 
+      ...prev, 
+      order: prev.order === 'asc' ? 'desc' : 'asc' 
+    }));
+  };
+  
+  // Select all / clear handlers
+  const handleSelectAllStatuses = () => setSelectedStatuses([...allStatuses]);
+  const handleClearStatuses = () => setSelectedStatuses([]);
+  
+  const handleSelectAllEstimators = () => setSelectedEstimators([...fieldOptions.estimatorOptions]);
+  const handleClearEstimators = () => setSelectedEstimators([]);
+  
+  const handleSelectAllManagers = () => setSelectedManagers([...fieldOptions.managerOptions]);
+  const handleClearManagers = () => setSelectedManagers([]);
+  
+  // Get all possible sort fields
+  const sortFields = [
+    { label: "Created Date", value: "createdAt" },
+    // { label: "Updated Date", value: "updatedAt" },
+    { label: "Job Name", value: "name" },
+    // { label: "Stage", value: STAGE_FIELD_ID },
+    // { label: "Estimator", value: ESTIMATOR_FIELD_ID },
+    // { label: "Manager", value: MANAGER_FIELD_ID },
+  ];
+
+  // Helper function to render a filter section
+  const renderFilterSection = (title, options, selected, toggleFn, selectAllFn, clearFn) => (
+    <FilterSection>
+      <SectionTitle>{title}</SectionTitle>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+        <Button size="small" onClick={selectAllFn}>All</Button>
+        <Button size="small" onClick={clearFn}>Clear</Button>
+      </div>
+      <div style={{ maxHeight: '200px', overflowY: 'auto' }}>
+        {options.map(option => (
+          <FilterOption key={option} onClick={() => toggleFn(option)}>
+            <Checkbox checked={selected.includes(option)} style={{ marginRight: '8px' }} />
+            {option}
+          </FilterOption>
+        ))}
+      </div>
+    </FilterSection>
+  );
+  
   return (
     <FilterContainer>
       {extraButtons}
       <SearchInput
         placeholder="Search jobs..."
         value={searchTerm}
-        onChange={handleSearchChange}
+        onChange={(e) => setSearchTerm(e.target.value)}
         prefix={<SearchOutlined />}
       />
       <Dropdown 
         overlay={
-          <FilterMenu>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-              <Button size="small" onClick={handleSelectAll}>Select All</Button>
-              <Button size="small" onClick={handleClearAll}>Clear All</Button>
-            </div>
-            <div style={{ borderBottom: '1px solid #f0f0f0', marginBottom: '8px' }}></div>
+          <FilterPanel>
+            <FilterRow>
+              {/* Status filter */}
+              {renderFilterSection(
+                "Status", 
+                allStatuses, 
+                selectedStatuses, 
+                handleStatusToggle,
+                handleSelectAllStatuses,
+                handleClearStatuses
+              )}
+              
+              {/* Estimator filter */}
+              {renderFilterSection(
+                "Estimator", 
+                fieldOptions.estimatorOptions, 
+                selectedEstimators, 
+                handleEstimatorToggle,
+                handleSelectAllEstimators,
+                handleClearEstimators
+              )}
+              
+              {/* Manager filter */}
+              {renderFilterSection(
+                "Manager", 
+                fieldOptions.managerOptions, 
+                selectedManagers, 
+                handleManagerToggle,
+                handleSelectAllManagers,
+                handleClearManagers
+              )}
+            </FilterRow>
             
-            {loading ? (
-              <div style={{ display: 'flex', justifyContent: 'center', padding: '20px' }}>
-                <Spin size="small" />
-              </div>
-            ) : error ? (
-              <div style={{ padding: '10px', color: 'red' }}>
-                Error loading statuses. Using defaults.
-              </div>
-            ) : (
-              allStatuses.map(status => (
-                <FilterOption key={status} onClick={() => handleStatusToggle(status)}>
-                  <Checkbox checked={selectedStatuses.includes(status)} style={{ marginRight: '8px' }} />
-                  {status}
-                </FilterOption>
-              ))
-            )}
-          </FilterMenu>
+            {/* Sort section */}
+            <FilterRow>
+              <FilterSection>
+                <SectionTitle>Sort By</SectionTitle>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <Select 
+                    style={{ flex: 1 }}
+                    value={sortOption.field}
+                    onChange={handleSortFieldChange}
+                  >
+                    {sortFields.map(field => (
+                      <Select.Option key={field.value} value={field.value}>
+                        {field.label}
+                      </Select.Option>
+                    ))}
+                  </Select>
+                  
+                  <Button 
+                    icon={sortOption.order === 'asc' ? <ArrowUpOutlined /> : <ArrowDownOutlined />}
+                    onClick={handleSortOrderToggle}
+                  />
+                </div>
+              </FilterSection>
+            </FilterRow>
+          </FilterPanel>
         }
         trigger={['click']} 
         visible={open}
         onVisibleChange={setOpen}
       >
         <FilterButton onClick={() => setOpen(!open)}>
-          Filter by Status ({selectedStatuses.length})
+          Filter
         </FilterButton>
       </Dropdown>
     </FilterContainer>
   );
 };
+
+// Add debounce utility function
+function debounce(func, wait) {
+  let timeout;
+  return function executedFunction(...args) {
+    const later = () => {
+      clearTimeout(timeout);
+      func(...args);
+    };
+    clearTimeout(timeout);
+    timeout = setTimeout(later, wait);
+  };
+}
 
 export default JobStatusFilter;
 

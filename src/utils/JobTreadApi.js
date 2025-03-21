@@ -73,7 +73,7 @@ export const fetchJobTread = async (customQuery) => {
   return _callJobTreadApi(customQuery);
 };
 
-export const updateJobTread = async (customQuery, updateData, method = "PUT") => {
+export const updateJobTread = async (customQuery, updateData, method = "POST") => {
   return _callJobTreadApi(customQuery, {
     method: method,
     data: updateData,

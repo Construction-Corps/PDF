@@ -49,6 +49,14 @@ export default function JobsChecklistPage() {
     });
     const [loadingFieldOptions, setLoadingFieldOptions] = useState(true);
     
+    const [filterParams, setFilterParams] = useState({
+        statuses: selectedStatuses,
+        estimators: [],
+        managers: [],
+        search: searchTerm,
+        sort: { field: "createdAt", order: "desc" }
+    });
+    
     // Extract fetch jobs into a callback to avoid recreation on each render
     const fetchJobs = useCallback(async (statuses, pageToken = "", append = false) => {
         if (!statuses || statuses.length === 0) return;
@@ -64,6 +72,12 @@ export default function JobsChecklistPage() {
                         $:{
                             "page": pageToken,
                             "size": 10,
+                            "sortBy": [
+                                {
+                                    "field": filterParams.sort.field,
+                                    "order": filterParams.sort.order
+                                }
+                            ],
                             "with": {
                                 "cf": {
                                     "_": "customFieldValues",
@@ -83,14 +97,23 @@ export default function JobsChecklistPage() {
                             "where": {
                                 "and": [
                                     ["closedOn","=",null],
-                                    ...(searchTerm ? [["name", "like", `%${searchTerm}%`]] : []),
+                                    ...(filterParams.search ? [["name", "like", `%${filterParams.search}%`]] : []),
                                     {
                                         "or": statuses.map(status => 
                                             [["cf", "values"], "=", status]
                                         )
-                                    }
+                                    },
+                                    ...(filterParams.estimators.length > 0 ? [{
+                                        "or": filterParams.estimators.map(estimator => 
+                                            [["cf", "values"], "=", estimator]
+                                        )
+                                    }] : []),
+                                    ...(filterParams.managers.length > 0 ? [{
+                                        "or": filterParams.managers.map(manager => 
+                                            [["cf", "values"], "=", manager]
+                                        )
+                                    }] : [])
                                 ],
-                                
                             }
                         },
                         "nodes": {
@@ -153,7 +176,7 @@ export default function JobsChecklistPage() {
         } finally {
             append ? setLoadingMore(false) : setLoading(false);
         }
-    }, [searchTerm]);
+    }, [filterParams]);
 
 
     const fetchTaskTypes = useCallback(async ( append = false) => {
@@ -194,7 +217,7 @@ export default function JobsChecklistPage() {
         }
     }, []);
     
-    // Only run fetchJobs when selectedStatuses changes
+    // Only run fetchJobs when filters change
     useEffect(() => {
         if (selectedStatuses.length > 0) {
             fetchTaskTypes(selectedStatuses, "");
@@ -203,7 +226,7 @@ export default function JobsChecklistPage() {
             // Clear isolation when filters change
             setIsolatedJobId(null);
         }
-    }, [selectedStatuses, searchTerm, fetchJobs]);
+    }, [filterParams, fetchJobs]);
     
     // Handle status changes from the filter component
     const handleStatusChange = useCallback((newStatuses) => {
@@ -618,6 +641,13 @@ export default function JobsChecklistPage() {
         setLoadingFieldOptions(false);
     }, []);
 
+    // Handle combined filter changes
+    const handleFiltersChange = useCallback((filters) => {
+        setFilterParams(filters);
+        setSelectedStatuses(filters.statuses);
+        setSearchTerm(filters.search);
+    }, []);
+
     return (
         <div style={{ padding: "20px" }}>
             <h2>Jobs Checklist</h2>
@@ -626,6 +656,7 @@ export default function JobsChecklistPage() {
                 onStatusChange={handleStatusChange} 
                 onSearchChange={handleSearchChange}
                 onFieldOptionsLoaded={handleFieldOptionsLoaded}
+                onFiltersChange={handleFiltersChange}
                 extraButtons={
                     <div 
                     style={{ 
@@ -903,14 +934,7 @@ export default function JobsChecklistPage() {
                                                 }}
                                             >
 
-                                                <Button
-                                                    onClick={() => toast.info("This feature is not available yet")} 
-                                                    style={{ 
-                                                        cursor: "pointer", 
-                                                        padding: "4px",
-                                                    }}
-                                                >
-                                                </Button>
+                                                
                                                 {isExpanded ? 
                                                     <CaretDownOutlined /> : 
                                                     <CaretRightOutlined />
