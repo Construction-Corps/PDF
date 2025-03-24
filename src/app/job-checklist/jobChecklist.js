@@ -59,7 +59,7 @@ export default function JobsChecklistPage() {
     
     // Extract fetch jobs into a callback to avoid recreation on each render
     const fetchJobs = useCallback(async (statuses, pageToken = "", append = false) => {
-        if (!statuses || statuses.length === 0) return;
+        // if (!statuses || statuses.length === 0) return;
         
         append ? setLoadingMore(true) : setLoading(true);
         try {
@@ -92,20 +92,45 @@ export default function JobsChecklistPage() {
                                             "field": "value"
                                         }
                                     }
+                                    
+                                },
+                                cf2: {
+                                    "_": "customFieldValues",
+                                    "$": {
+                                        "where": [["customField", "id"], "=", "22NwWybgjBTW"]
+                                    },
+                                    "values": {
+                                        "$": {
+                                            "field": "value"
+                                        }
+                                    }
+                                },
+                                cf3: {
+                                    "_": "customFieldValues",
+                                    "$": {
+                                        "where": [["customField", "id"], "=", "22P2ZNybRiyG"]
+                                    },
+                                    "values": {
+                                        "$": {
+                                            "field": "value"
+                                        }
+                                    }
                                 }
                             },
                             "where": {
                                 "and": [
                                     ["closedOn","=",null],
                                     ...(filterParams.search ? [["name", "like", `%${filterParams.search}%`]] : []),
-                                    {
+                                    
+                                    ...(filterParams.statuses.length > 0 ? [{
                                         "or": statuses.map(status => 
                                             [["cf", "values"], "=", status]
                                         )
-                                    },
+                                    }] : []),
+                                    
                                     ...(filterParams.estimators.length > 0 ? [{
                                         "or": filterParams.estimators.map(estimator => 
-                                            [["cf", "values"], "=", estimator]
+                                            [["cf2", "values"], "=", estimator]
                                         )
                                     }] : []),
                                     ...(filterParams.managers.length > 0 ? [{
@@ -157,6 +182,10 @@ export default function JobsChecklistPage() {
             };
             
             const data = await fetchJobTread(jobsQuery);
+
+            console.log("about to query");
+
+            console.log("query", jobsQuery?.organization?.jobs?.$, "result", data?.organization?.jobs?.nodes);
             
             // data.allJobs.nodes should have the list of jobs
             if (data?.organization?.jobs?.nodes) {
@@ -219,13 +248,13 @@ export default function JobsChecklistPage() {
     
     // Only run fetchJobs when filters change
     useEffect(() => {
-        if (selectedStatuses.length > 0) {
+        // if (selectedStatuses.length > 0) {
             fetchTaskTypes(selectedStatuses, "");
             fetchJobs(selectedStatuses, "");
             setNextPageToken("");
             // Clear isolation when filters change
             setIsolatedJobId(null);
-        }
+        // }
     }, [filterParams, fetchJobs]);
     
     // Handle status changes from the filter component
