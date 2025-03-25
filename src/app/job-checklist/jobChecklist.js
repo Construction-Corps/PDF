@@ -820,11 +820,7 @@ export default function JobsChecklistPage() {
                             borderBottom: "2px solid #f0f0f0",
                             fontWeight: "bold"
                         }}>
-                            <div 
-                            className="job-header"
-                            style={{ 
-                                
-                            }}>
+                            <div className="job-header">
                                 Job
                             </div>
                             {/* Task headers will be implicit */}
@@ -854,8 +850,7 @@ export default function JobsChecklistPage() {
                                     borderBottom: "1px solid #777"
                                 }}>
                                     {/* Job cell */}
-                                    <div 
-                                    className="job-cell">
+                                    <div className="job-cell">
                                         <div style={{ 
                                             display: "flex", 
                                             justifyContent: "space-between", 

@@ -114,6 +114,39 @@ body {
   position: relative;
 }
 
+.ant-select {
+  background-color: var(--background);
+  color: var(--foreground);
+}
+
+.ant-select-selector {
+  background-color: var(--background) !important;
+  color: var(--foreground);
+}
+
+.ant-select-arrow {
+  color: var(--foreground);
+}
+
+.ant-select-selection-item {
+  color: var(--foreground);
+}
+
+.ant-input {
+  background-color: var(--background);
+  color: var(--foreground);
+}
+
+.ant-input-outlined {
+  background-color: var(--background);
+  color: var(--foreground);
+}
+
+.ant-btn {
+  background-color: var(--background);
+  color: var(--foreground);
+}
+
 .job-header {
   width: 250px;
   padding: 8px;
