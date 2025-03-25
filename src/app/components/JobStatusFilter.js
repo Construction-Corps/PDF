@@ -15,14 +15,14 @@ const FilterContainer = styled.div`
 `;
 
 const FilterButton = styled(Button)`
-  background: white;
-  border: 1px solid #d9d9d9;
-  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.015);
-  border-radius: 4px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 500;
+  // background: white;
+  // border: 1px solid #d9d9d9;
+  // box-shadow: 0 2px 0 rgba(0, 0, 0, 0.015);
+  // border-radius: 4px;
+  // display: flex;
+  // align-items: center;
+  // justify-content: center;
+  // font-weight: 500;
   ${props => props.isMobile && `
     min-width: 36px;
     padding: 0 8px;
