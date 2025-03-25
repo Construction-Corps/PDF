@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import { fetchJobTread } from "../../utils/JobTreadApi";
 import { HTMLTooltip } from "../components/formatters/fields";
 import JobStatusFilter from "../components/JobStatusFilter";
@@ -59,6 +59,14 @@ export default function JobsChecklistPage() {
     
     const { isMobile } = useWindowSize();
     
+    // Add a simple boolean state for horizontal scrolling
+    const [isScrolledHorizontally, setIsScrolledHorizontally] = useState(false);
+    
+    // Add this to log whenever the state changes
+    useEffect(() => {
+        console.log("isScrolledHorizontally changed to:", isScrolledHorizontally);
+    }, [isScrolledHorizontally]);
+
     // Extract fetch jobs into a callback to avoid recreation on each render
     const fetchJobs = useCallback(async (statuses, pageToken = "", append = false) => {
         // if (!statuses || statuses.length === 0) return;
@@ -731,7 +739,7 @@ export default function JobsChecklistPage() {
                                 onClick={() => {
                                     setMinimizedTasks(prev => {
                                         const newMinimized = prev.filter(t => 
-                                            !selectedTasks.some(st => st.taskId === t.taskId && t.jobId === t.jobId)
+                                            !selectedTasks.some(st => st.taskId === t.taskId && st.jobId === t.jobId)
                                         );
                                         
                                         localStorage.setItem('minimizedTasks', JSON.stringify(newMinimized));
@@ -809,7 +817,21 @@ export default function JobsChecklistPage() {
             {loading ? (
                 <div>Loading Jobs...</div>
             ) : (
-                <div style={{ width: "100%", overflowX: "auto" }}>
+                <div 
+                    className="job-list-container" 
+                    style={{ 
+                        width: "100%", 
+                        overflowX: "auto",
+                        // Add these to ensure proper scrolling behavior
+                        WebkitOverflowScrolling: "touch",
+                        scrollbarWidth: "thin"
+                    }}
+                    onScroll={(e) => {
+                        // Add direct event handler in addition to listener
+                        console.log("onScroll triggered, scrollLeft:", e.currentTarget.scrollLeft);
+                        setIsScrolledHorizontally(e.currentTarget.scrollLeft > 0);
+                    }}
+                >
                     <div style={{ 
                         width: "max-content",
                         minWidth: "100%"
@@ -850,6 +872,12 @@ export default function JobsChecklistPage() {
                                     borderBottom: "1px solid #777"
                                 }}>
                                     {/* Job cell */}
+                                    { isMobile && isScrolledHorizontally ?
+                                
+                                    <div className="job-cell-mobile">
+                                        {job.name}
+                                    </div>
+                                    :
                                     <div className="job-cell">
                                         <div style={{ 
                                             display: "flex", 
@@ -966,7 +994,9 @@ export default function JobsChecklistPage() {
                                                 />
                                             </div>
                                         )}
-                                    </div>
+                                    </div> 
+                                    }
+
                                     
                                     {/* Task cells */}
                                     {sortedTasks.map(task => {
