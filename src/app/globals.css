@@ -167,6 +167,16 @@ body {
   box-shadow: inset -1px 0 0 #777;
 }
 
+.job-cell-mobile {
+  width: 80px;
+  padding: 8px;
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  word-break: break-word;
+  background-color: var(--background);
+}
+
 .jobs-list {
   position: absolute;
   width: 400px;
