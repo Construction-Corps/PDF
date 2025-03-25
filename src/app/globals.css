@@ -114,6 +114,26 @@ body {
   position: relative;
 }
 
+.job-header {
+  width: 250px;
+  padding: 8px;
+  position: sticky;
+  left: 0;
+  background-color: var(--background);
+  z-index: 2;
+  box-shadow: inset -1px 0 0 #777;
+}
+
+.job-cell {
+  width: 200px;
+  padding: 8px;
+  position: sticky;
+  left: 0;
+  background-color: var(--background);
+  z-index: 2;
+  box-shadow: inset -1px 0 0 #777;
+}
+
 .jobs-list {
   position: absolute;
   width: 400px;
@@ -447,7 +467,7 @@ body {
 .theme-switch {
   position: fixed;
   top: 7px;
-  right: 20px;
+  right: 10px;
   z-index: 1000;
   background: none;
   border: none;

@@ -1,13 +1,14 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import styled from 'styled-components';
 import { Dropdown, Checkbox, Button, Input, Spin, Select } from 'antd';
-import { SearchOutlined, ArrowUpOutlined, ArrowDownOutlined } from '@ant-design/icons';
+import { SearchOutlined, ArrowUpOutlined, ArrowDownOutlined, FilterOutlined } from '@ant-design/icons';
 import { fetchJobTread } from '@/utils/JobTreadApi';
+import { useWindowSize } from './useWindowSize';
 
 const FilterContainer = styled.div`
   position: absolute;
   top: 10px;
-  right: 100px;
+  right: 50px;
   z-index: 10;
   display: flex;
   gap: 10px;
@@ -22,6 +23,10 @@ const FilterButton = styled(Button)`
   align-items: center;
   justify-content: center;
   font-weight: 500;
+  ${props => props.isMobile && `
+    min-width: 36px;
+    padding: 0 8px;
+  `}
 `;
 
 const FilterMenu = styled.div`
@@ -46,7 +51,7 @@ const FilterOption = styled.div`
 `;
 
 const SearchInput = styled(Input)`
-  width: 200px;
+  width: ${props => props.isMobile ? '120px' : '200px'};
   border-radius: 4px;
 `;
 
@@ -54,27 +59,30 @@ const FilterPanel = styled.div`
   background: white;
   border-radius: 4px;
   box-shadow: 0 3px 6px rgba(0, 0, 0, 0.16);
-  padding: 16px;
-  width: 700px;
+  padding: ${props => props.isMobile ? '12px 8px' : '16px'};
+  width: ${props => props.isMobile ? '100%' : '700px'};
+  max-width: ${props => props.isMobile ? '100vw' : 'none'};
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: ${props => props.isMobile ? '8px' : '12px'};
 `;
 
 const FilterRow = styled.div`
   display: flex;
-  gap: 12px;
+  gap: ${props => props.isMobile ? '8px' : '12px'};
   flex-wrap: wrap;
+  flex-direction: ${props => props.isMobile ? 'column' : 'row'};
 `;
 
 const FilterSection = styled.div`
   flex: 1;
-  min-width: 200px;
+  min-width: ${props => props.isMobile ? '100%' : '200px'};
 `;
 
 const SectionTitle = styled.div`
   font-weight: 500;
   margin-bottom: 8px;
+  font-size: ${props => props.isMobile ? '14px' : '16px'};
 `;
 
 // Default selections that match current JobChecklist
@@ -100,6 +108,7 @@ const ESTIMATOR_KEY = 'jobEstimatorFilterSelections';
 const MANAGER_KEY = 'jobManagerFilterSelections';
 const SORT_KEY = 'jobSortSelection';
 
+
 const JobStatusFilter = ({ 
   onStatusChange, 
   onSearchChange, 
@@ -109,6 +118,9 @@ const JobStatusFilter = ({
   initialSelections = null, 
   extraButtons = null 
 }) => {
+  // Add window size state
+  const { isMobile } = useWindowSize();
+  
   // State for all available statuses
   const [allStatuses, setAllStatuses] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -364,25 +376,36 @@ const JobStatusFilter = ({
   // Get all possible sort fields
   const sortFields = [
     { label: "Created Date", value: "createdAt" },
-    // { label: "Updated Date", value: "updatedAt" },
+    { label: "Updated Date", value: "updatedAt" },
     { label: "Job Name", value: "name" },
-    // { label: "Stage", value: STAGE_FIELD_ID },
-    // { label: "Estimator", value: ESTIMATOR_FIELD_ID },
-    // { label: "Manager", value: MANAGER_FIELD_ID },
+    { label: "Stage", value: STAGE_FIELD_ID },
+    { label: "Estimator", value: ESTIMATOR_FIELD_ID },
+    { label: "Manager", value: MANAGER_FIELD_ID },
   ];
 
   // Helper function to render a filter section
   const renderFilterSection = (title, options, selected, toggleFn, selectAllFn, clearFn) => (
-    <FilterSection>
-      <SectionTitle>{title}</SectionTitle>
+    <FilterSection isMobile={isMobile}>
+      <SectionTitle isMobile={isMobile}>{title}</SectionTitle>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-        <Button size="small" onClick={selectAllFn}>All</Button>
-        <Button size="small" onClick={clearFn}>Clear</Button>
+        <Button size={isMobile ? "small" : "middle"} onClick={selectAllFn}>
+          {isMobile ? 'All' : 'Select All'}
+        </Button>
+        <Button size={isMobile ? "small" : "middle"} onClick={clearFn}>
+          {isMobile ? '✕' : 'Clear'}
+        </Button>
       </div>
-      <div style={{ maxHeight: '200px', overflowY: 'auto' }}>
+      <div style={{ 
+        maxHeight: isMobile ? '150px' : '200px', 
+        overflowY: 'auto',
+        fontSize: isMobile ? '13px' : '14px'
+      }}>
         {options.map(option => (
           <FilterOption key={option} onClick={() => toggleFn(option)}>
-            <Checkbox checked={selected.includes(option)} style={{ marginRight: '8px' }} />
+            <Checkbox 
+              checked={selected.includes(option)} 
+              style={{ marginRight: '8px' }} 
+            />
             {option}
           </FilterOption>
         ))}
@@ -391,18 +414,19 @@ const JobStatusFilter = ({
   );
   
   return (
-    <FilterContainer>
+    <FilterContainer isMobile={isMobile}>
       {extraButtons}
       <SearchInput
-        placeholder="Search jobs..."
+        isMobile={isMobile}
+        placeholder={isMobile ? "Search..." : "Search jobs..."}
         value={searchTerm}
         onChange={(e) => setSearchTerm(e.target.value)}
         prefix={<SearchOutlined />}
       />
       <Dropdown 
         overlay={
-          <FilterPanel>
-            <FilterRow>
+          <FilterPanel isMobile={isMobile}>
+            <FilterRow isMobile={isMobile}>
               {/* Status filter */}
               {renderFilterSection(
                 "Status", 
@@ -435,14 +459,15 @@ const JobStatusFilter = ({
             </FilterRow>
             
             {/* Sort section */}
-            <FilterRow>
-              <FilterSection>
-                <SectionTitle>Sort By</SectionTitle>
+            <FilterRow isMobile={isMobile}>
+              <FilterSection isMobile={isMobile}>
+                <SectionTitle isMobile={isMobile}>Sort By</SectionTitle>
                 <div style={{ display: 'flex', gap: '8px' }}>
                   <Select 
                     style={{ flex: 1 }}
                     value={sortOption.field}
                     onChange={handleSortFieldChange}
+                    size={isMobile ? "small" : "middle"}
                   >
                     {sortFields.map(field => (
                       <Select.Option key={field.value} value={field.value}>
@@ -454,6 +479,7 @@ const JobStatusFilter = ({
                   <Button 
                     icon={sortOption.order === 'asc' ? <ArrowUpOutlined /> : <ArrowDownOutlined />}
                     onClick={handleSortOrderToggle}
+                    size={isMobile ? "small" : "middle"}
                   />
                 </div>
               </FilterSection>
@@ -463,9 +489,10 @@ const JobStatusFilter = ({
         trigger={['click']} 
         visible={open}
         onVisibleChange={setOpen}
+        placement={isMobile ? "bottomRight" : "bottomLeft"}
       >
-        <FilterButton onClick={() => setOpen(!open)}>
-          Filter
+        <FilterButton isMobile={isMobile} onClick={() => setOpen(!open)}>
+          {isMobile ? <FilterOutlined /> : "Filter"}
         </FilterButton>
       </Dropdown>
     </FilterContainer>

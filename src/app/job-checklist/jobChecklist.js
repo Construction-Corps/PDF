@@ -7,7 +7,7 @@ import { CaretRightOutlined, CaretDownOutlined, VerticalAlignMiddleOutlined, Arr
 import dayjs from 'dayjs';
 import { Button, Tooltip } from 'antd';
 import JobFieldEditors from '../components/JobFieldEditors';
-
+import { useWindowSize } from '../components/useWindowSize';
 
 // Helper for sorting tasks by startDate
 function sortTasksByStartDate(tasks) {
@@ -56,6 +56,8 @@ export default function JobsChecklistPage() {
         search: searchTerm,
         sort: { field: "createdAt", order: "desc" }
     });
+    
+    const { isMobile } = useWindowSize();
     
     // Extract fetch jobs into a callback to avoid recreation on each render
     const fetchJobs = useCallback(async (statuses, pageToken = "", append = false) => {
@@ -678,7 +680,7 @@ export default function JobsChecklistPage() {
     }, []);
 
     return (
-        <div style={{ padding: "20px" }}>
+        <div style={{ padding: "20px", paddingTop: isMobile ? "50px" : "0px" }}>
             <h2>Jobs Checklist</h2>
             
             <JobStatusFilter 
@@ -689,23 +691,19 @@ export default function JobsChecklistPage() {
                 extraButtons={
                     <div 
                     style={{ 
-                        // margin: "10px 0", 
                         padding: "2px", 
                         paddingX: "8px",
                         background: "#f0f8ff", 
                         border: "1px solid #91d5ff",
                         borderRadius: "4px",
                         display: "flex",
-                        // position: "sticky",
-                        // top: "50px",
-                        // zIndex: 1000,
                         justifyContent: "space-between",
                         alignItems: "center"
                     }}
                     >
                 {selectedTasks.length > 0 ? (
                     <>
-                        <span style={{ marginRight: "8px" }}>{selectedTasks.length} tasks selected</span>
+                        {!isMobile && <span style={{ marginRight: "8px" }}>{selectedTasks.length} tasks selected</span>}
                         <div>
                             <Button 
                                 type="primary" 
@@ -726,7 +724,7 @@ export default function JobsChecklistPage() {
                                 }}
                                 style={{ marginRight: "8px" }}
                             >
-                                Minimize Selected (-)
+                                {isMobile ? "-" : "Minimize Selected (-)"}
                             </Button>
                             <Button 
                                 size="small" 
@@ -742,24 +740,24 @@ export default function JobsChecklistPage() {
                                     setSelectedTasks([]);
                                 }}
                             >
-                                Restore Selected (+)
+                                {isMobile ? "+" : "Restore Selected (+)"}
                             </Button>
                             <Button 
                                 style={{ marginLeft: "8px" }}
                                 size="small" 
                                 onClick={() => setSelectedTasks([])}
                             >
-                                Deselect All
+                                {isMobile ? "✕" : "Deselect All"}
                             </Button>
                         </div>
                     </>
                 ): (
                 < >
-                    <div style={{ marginRight: "8px" }}>
+                    {!isMobile && <div style={{ marginRight: "8px" }}>
                         {minimizedTasks.length > 0 ? 
                             `${minimizedTasks.length} tasks minimized` : 
                             "All tasks expanded"}
-                    </div>
+                    </div>}
                     <div>
                         <Button 
                             type="primary" 
@@ -767,13 +765,15 @@ export default function JobsChecklistPage() {
                             onClick={minimizedTasks.length > 0 ? handleExpandAllTasks : handleMinimizeAllTasks}
                             style={{ marginRight: "8px" }}
                         >
-                            {minimizedTasks.length > 0 ? "Expand All Tasks" : "Minimize All Tasks"}
+                            {isMobile ? 
+                                (minimizedTasks.length > 0 ? "↕️" : "↓") : 
+                                (minimizedTasks.length > 0 ? "Expand All Tasks" : "Minimize All Tasks")}
                         </Button>
                         <Button 
                             size="small" 
                             onClick={handleMinimizeCompletedTasks}
                         >
-                            Minimize Completed
+                            {isMobile ? "✓↓" : "Minimize Completed"}
                         </Button>
                     </div>
                 </>)}
@@ -820,14 +820,10 @@ export default function JobsChecklistPage() {
                             borderBottom: "2px solid #f0f0f0",
                             fontWeight: "bold"
                         }}>
-                            <div style={{ 
-                                width: "250px",
-                                padding: "8px",
-                                position: "sticky",
-                                left: 0,
-                                backgroundColor: "white",
-                                zIndex: 2,
-                                boxShadow: "inset -1px 0 0 #777"
+                            <div 
+                            className="job-header"
+                            style={{ 
+                                
                             }}>
                                 Job
                             </div>
@@ -858,15 +854,8 @@ export default function JobsChecklistPage() {
                                     borderBottom: "1px solid #777"
                                 }}>
                                     {/* Job cell */}
-                                    <div style={{ 
-                                        width: "200px",
-                                        padding: "8px",
-                                        position: "sticky",
-                                        left: 0,
-                                        backgroundColor: "white",
-                                        zIndex: 2,
-                                        boxShadow: "inset -1px 0 0 #777"
-                                    }}>
+                                    <div 
+                                    className="job-cell">
                                         <div style={{ 
                                             display: "flex", 
                                             justifyContent: "space-between", 
