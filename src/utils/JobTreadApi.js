@@ -4,6 +4,28 @@ const PROXY_ENDPOINT = "https://be.humanagement.io/actions/api/jobtread-proxy/";
 const GRANT_KEY = "22SkCV5JXCtY6eKk5w2ZWBsyhpBBrr6Lea";
 const ORGANIZATION_ID = "22NwWhUAf6VB";
 
+// Generate a 5-letter key from custom query to identify API calls
+const generateQueryKey = (customQuery) => {
+  // Convert query to string and generate a simple hash
+  const queryString = JSON.stringify(customQuery);
+  let hash = 0;
+  for (let i = 0; i < queryString.length; i++) {
+    const char = queryString.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash; // Convert to 32bit integer
+  }
+  
+  // Convert hash to a 5-letter key (using letters A-Z)
+  const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  let key = '';
+  const positiveHash = Math.abs(hash);
+  for (let i = 0; i < 5; i++) {
+    key += letters[Math.floor((positiveHash / Math.pow(26, i)) % 26)];
+  }
+  
+  return key;
+};
+
 // Private shared function to handle JobTread API calls
 const _callJobTreadApi = async (customQuery, options = {}) => {
   const { 
@@ -13,6 +35,9 @@ const _callJobTreadApi = async (customQuery, options = {}) => {
     showSuccessMessage = false,
     successMessage = "Operation completed successfully" 
   } = options;
+  
+  // Generate 5-letter key for the query
+  const queryKey = generateQueryKey(customQuery);
   
   // If the query includes organization, inject the ID into it
   const processedQuery = {
@@ -37,7 +62,10 @@ const _callJobTreadApi = async (customQuery, options = {}) => {
   }
 
   try {
-    const response = await fetch(PROXY_ENDPOINT, {
+    // Append the query key to the URL
+    const url = `${PROXY_ENDPOINT}?${queryKey}`;
+    
+    const response = await fetch(url, {
       method: method,
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(baseQuery)

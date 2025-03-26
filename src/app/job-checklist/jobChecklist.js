@@ -67,6 +67,9 @@ export default function JobsChecklistPage() {
         console.log("isScrolledHorizontally changed to:", isScrolledHorizontally);
     }, [isScrolledHorizontally]);
 
+    // Add a state to track the count of jobs from last request
+    const [lastRequestCount, setLastRequestCount] = useState(10);
+
     // Extract fetch jobs into a callback to avoid recreation on each render
     const fetchJobs = useCallback(async (statuses, pageToken = "", append = false) => {
         // if (!statuses || statuses.length === 0) return;
@@ -199,14 +202,20 @@ export default function JobsChecklistPage() {
             
             // data.allJobs.nodes should have the list of jobs
             if (data?.organization?.jobs?.nodes) {
+                const newJobs = data.organization.jobs.nodes;
+                
+                // Track how many jobs we received in this request
+                setLastRequestCount(newJobs.length);
+                console.log(`Received ${newJobs.length} jobs in this request`);
+                
                 if (append) {
                     // Append new jobs to existing jobs
-                    setJobs(prevJobs => [...prevJobs, ...data.organization.jobs.nodes]);
+                    setJobs(prevJobs => [...prevJobs, ...newJobs]);
                 } else {
                     // Replace jobs with new data
-                    setJobs(data.organization.jobs.nodes);
+                    setJobs(newJobs);
                 }
-                                
+                
                 // Store the next page token for future requests
                 setNextPageToken(data.organization.jobs.nextPage || "");
             }
@@ -432,13 +441,19 @@ export default function JobsChecklistPage() {
         }
     };
 
-    // Handle loading more data when user scrolls to bottom
+    // Modify loadMoreJobs to check the count from last request
     const loadMoreJobs = useCallback(() => {
-        console.log("loadMoreJobs");
-        if (nextPageToken && selectedStatuses.length > 0 && !loadingMore) {
+        console.log("loadMoreJobs", { lastRequestCount, nextPageToken, loadingMore });
+        
+        // Only load more if we got a full page (10 items) in the last request
+        // AND we have a nextPageToken AND we're not already loading
+        if (lastRequestCount === 10 && nextPageToken && !loadingMore) {
+            setLoadingMore(true);
             fetchJobs(selectedStatuses, nextPageToken, true);
+        } else {
+            console.log("Skipping load more - received less than 10 jobs in last request or no token");
         }
-    }, [nextPageToken, selectedStatuses, loadingMore, fetchJobs]);
+    }, [nextPageToken, selectedStatuses, loadingMore, fetchJobs, lastRequestCount]);
 
     // Add scroll event listener to detect when user reaches bottom of the page
     useEffect(() => {
@@ -711,7 +726,7 @@ export default function JobsChecklistPage() {
                     >
                 {selectedTasks.length > 0 ? (
                     <>
-                        {!isMobile && <span style={{ marginRight: "8px" }}>{selectedTasks.length} tasks selected</span>}
+                        {!isMobile && <span className="mr-2">{selectedTasks.length} tasks selected</span>}
                         <div>
                             <Button 
                                 type="primary" 
@@ -730,7 +745,7 @@ export default function JobsChecklistPage() {
                                     });
                                     setSelectedTasks([]);
                                 }}
-                                style={{ marginRight: "8px" }}
+                                className="mr-2"
                             >
                                 {isMobile ? "-" : "Minimize Selected (-)"}
                             </Button>
@@ -761,7 +776,7 @@ export default function JobsChecklistPage() {
                     </>
                 ): (
                 < >
-                    {!isMobile && <div style={{ marginRight: "8px" }}>
+                    {!isMobile && <div className="mr-2 text-black-all">
                         {minimizedTasks.length > 0 ? 
                             `${minimizedTasks.length} tasks minimized` : 
                             "All tasks expanded"}
@@ -771,7 +786,7 @@ export default function JobsChecklistPage() {
                             type="primary" 
                             size="small" 
                             onClick={minimizedTasks.length > 0 ? handleExpandAllTasks : handleMinimizeAllTasks}
-                            style={{ marginRight: "8px" }}
+                            className="mr-2"
                         >
                             {isMobile ? 
                                 (minimizedTasks.length > 0 ? "↕️" : "↓") : 
@@ -1059,6 +1074,7 @@ export default function JobsChecklistPage() {
                                                     {!isMinimized && (
                                                         <div style={{ 
                                                             display: 'flex',
+                                                            height: "100%",
                                                             alignItems: 'flex-start',
                                                             marginLeft: '12px'
                                                         }}>
@@ -1069,20 +1085,21 @@ export default function JobsChecklistPage() {
                                                                     e.stopPropagation();
                                                                     handleCheckboxChange(job.id, task.id, e.target.checked);
                                                                 }}
-                                                                style={{ 
-                                                                    cursor: "pointer",
-                                                                    width: "20px",
-                                                                    height: "20px",
-                                                                    marginRight: "8px"
-                                                                }}
+                                                                className="mr-2"
                                                                 onClick={(e) => e.stopPropagation()}
                                                             />
                                                             
                                                             <div style={{ 
                                                                 whiteSpace: "normal",
-                                                                wordBreak: "break-word"
+                                                                wordBreak: "break-word",
+                                                                display: "flex",
+                                                                flexDirection: "column",
+                                                                height: "100%"
                                                             }}>
                                                                 {task.name}
+                                                                <div className="mt-auto">
+                                                                    <span className="text-muted">{dayjs(task.startDate).format('MM/DD')} - {dayjs(task.endDate).format('MM/DD')}</span>
+                                                                </div>
                                                             </div>
                                                         </div>
                                                     )}
