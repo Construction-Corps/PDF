@@ -195,9 +195,9 @@ export default function JobsChecklistPage() {
             };
             
             const data = await fetchJobTread(jobsQuery);
-
+            
             console.log("about to query");
-
+            
             console.log("query", jobsQuery?.organization?.jobs?.$, "result", data?.organization?.jobs?.nodes);
             
             // data.allJobs.nodes should have the list of jobs
