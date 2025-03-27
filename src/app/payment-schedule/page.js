@@ -211,7 +211,7 @@ const PaymentSchedule = () => {
       },
       {
         phase: 'Project Complete',
-        percentage: 34,
+        percentage: 70,
         dueText: 'When project is complete',
       }
     ]
