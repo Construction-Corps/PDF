@@ -1,10 +1,12 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Form, Input, Button, InputNumber, Row, Col, message } from 'antd';
-import { CopyOutlined, PlusOutlined, MinusOutlined } from '@ant-design/icons';
+import { Form, Input, Button, InputNumber, Row, Col, message, Space } from 'antd';
+import { CopyOutlined, PlusOutlined, MinusOutlined, HolderOutlined } from '@ant-design/icons';
 import styled from 'styled-components';
 import Cleave from 'cleave.js/react';
+import { DndProvider, useDrag, useDrop } from 'react-dnd';
+import { HTML5Backend } from 'react-dnd-html5-backend';
 
 const Container = styled.div`
   max-width: 800px;
@@ -134,99 +136,142 @@ const Label = styled.span`
   color: #666;
 `;
 
+const DragHandle = styled.div`
+  cursor: move;
+  color: #bfbfbf;
+  transition: color 0.3s;
+  &:hover {
+    color: #666;
+  }
+`;
+
+const type = 'DraggableFormItem';
+
+const DraggableRow = ({ index, moveRow, children }) => {
+  const ref = useRef();
+  
+  const [{ isOver, dropClassName }, drop] = useDrop({
+    accept: type,
+    collect: (monitor) => {
+      const { index: dragIndex } = monitor.getItem() || {};
+      if (dragIndex === index) {
+        return {};
+      }
+      return {
+        isOver: monitor.isOver(),
+        dropClassName: dragIndex < index ? ' drop-over-downward' : ' drop-over-upward',
+      };
+    },
+    drop: (item) => {
+      moveRow(item.index, index);
+    },
+  });
+  
+  const [{ isDragging }, drag] = useDrag({
+    type,
+    item: { index },
+    collect: (monitor) => ({
+      isDragging: monitor.isDragging(),
+    }),
+  });
+  
+  drop(drag(ref));
+  
+  const opacity = isDragging ? 0.4 : 1;
+  const rowStyle = {
+    opacity,
+    background: isOver ? '#f0f8ff' : 'white',
+    transition: 'all 0.3s',
+  };
+  
+  return (
+    <div ref={ref} style={rowStyle}>
+      {children}
+    </div>
+  );
+};
+
 const PaymentSchedule = () => {
   const [form] = Form.useForm();
-  const [rows, setRows] = useState([
-    {
-      phase: 'Deposit',
-      percentage: 50,
-      dueText: 'Due upon acceptance',
-      key: 'initial-1'
-    },
-    {
-      phase: 'Project Complete',
-      percentage: 50,
-      dueText: 'When project is complete',
-      key: 'initial-2'
-    }
-  ]);
   const [totalPercentage, setTotalPercentage] = useState(100);
   const [output, setOutput] = useState('');
   const cleaveRef = useRef(null);
 
-  const updateDuePlaceholder = (index, phaseValue) => {
-    const newRows = [...rows];
-    if (!newRows[index].dueText || newRows[index].dueText.includes('Due upon ')) {
-      newRows[index].dueText = `Due upon ${phaseValue} `
-      // + `start`;
-      setRows(newRows);
-    }
+  const initialValues = {
+    paymentPhases: [
+      {
+        phase: 'Deposit',
+        percentage: 10,
+        dueText: 'Due upon acceptance',
+      },
+      {
+        phase: 'Permit',
+        percentage: 20,
+        dueText: 'Due upon permit submission',
+      },
+      {
+        phase: 'Project Complete',
+        percentage: 34,
+        dueText: 'When project is complete',
+      }
+    ]
   };
 
-  const adjustPercentages = () => {
-    const sum = rows.reduce((acc, row) => acc + (row.percentage || 0), 0);
-    setTotalPercentage(sum);
-  };
+  useEffect(() => {
+    form.setFieldsValue(initialValues);
+    updateTotalPercentage();
+  }, []);
 
-  const addRow = () => {
-    const newRow = {
-      phase: '',
-      percentage: 0,
-      dueText: '',
-      key: `row-${Date.now()}`
-    };
-    
-    // Insert before the last row (Project Complete)
-    const newRows = [...rows];
-    newRows.splice(rows.length - 1, 0, newRow);
-    setRows(newRows);
-    adjustPercentages();
-  };
-
-  const removeRow = (index) => {
-    const newRows = rows.filter((_, i) => i !== index);
-    setRows(newRows);
-    adjustPercentages();
+  const updateTotalPercentage = () => {
+    const paymentPhases = form.getFieldValue('paymentPhases') || [];
+    const total = paymentPhases.reduce((sum, item) => sum + (Number(item.percentage) || 0), 0);
+    setTotalPercentage(total);
   };
 
   const calculatePayments = (values) => {
-    if (totalPercentage !== 100) {
-      message.error('The total percentage must equal 100%');
+    const totalAmount = parseFloat(values.totalAmount.replace(/[$,]/g, ''));
+    if (isNaN(totalAmount)) {
+      message.error('Please enter a valid total amount');
       return;
     }
 
-    const totalAmount = parseFloat(values.totalAmount.replace(/[$,]/g, ''));
-    const formatter = new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2
-    });
+    if (totalPercentage !== 100) {
+      message.error('Total percentage must equal 100%');
+      return;
+    }
 
-    const calculatedOutput = rows.map(row => {
-      const amount = (row.percentage / 100) * totalAmount;
-      return `${row.percentage}% ${row.phase} = ${formatter.format(amount)} (${row.dueText})`;
-    }).join('\n');
+    const phases = values.paymentPhases.map(phase => ({
+      phase: phase.phase,
+      amount: (totalAmount * phase.percentage / 100).toFixed(2),
+      percentage: phase.percentage,
+      dueText: phase.dueText
+    }));
 
-    setOutput(calculatedOutput);
+    const formattedOutput = phases.map(phase => 
+      `${phase.percentage}% ${phase.phase} = $${parseFloat(phase.amount).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})} (${phase.dueText})`
+    ).join('\n');
+
+    setOutput(formattedOutput);
   };
 
-  const handleCopy = () => {
+  const copyToClipboard = () => {
     navigator.clipboard.writeText(output)
       .then(() => message.success('Copied to clipboard!'))
-      .catch(() => message.error('Error copying to clipboard.'));
+      .catch(() => message.error('Failed to copy'));
   };
-
-  const handleRowChange = (index, field, value) => {
-    const newRows = [...rows];
-    newRows[index][field] = value;
-    if (field === 'phase') {
-      updateDuePlaceholder(index, value);
-    }
-    if (field === 'percentage') {
-      adjustPercentages();
-    }
-    setRows(newRows);
+  
+  const moveRow = (dragIndex, hoverIndex) => {
+    const paymentPhases = form.getFieldValue('paymentPhases');
+    const dragRow = paymentPhases[dragIndex];
+    
+    // Create a new array without the dragged item
+    const newData = [...paymentPhases];
+    newData.splice(dragIndex, 1);
+    // Insert the dragged item at the target position
+    newData.splice(hoverIndex, 0, dragRow);
+    
+    form.setFieldsValue({ paymentPhases: newData });
+    updateTotalPercentage();
   };
 
   return (
@@ -237,6 +282,7 @@ const PaymentSchedule = () => {
           form={form} 
           onFinish={calculatePayments}
           layout="vertical"
+          initialValues={initialValues}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
             <Label>Total Amount</Label>
@@ -261,66 +307,78 @@ const PaymentSchedule = () => {
             </StyledFormItem>
           </div>
 
-          {rows.map((row, index) => (
-            <ScheduleRow key={row.key}>
-              <Col span={6}>
-                <StyledFormItem
-                  label="Phase"
-                  required
-                >
-                  <Input
-                    value={row.phase}
-                    onChange={(e) => handleRowChange(index, 'phase', e.target.value)}
-                    placeholder="Phase Name"
-                  />
-                </StyledFormItem>
-              </Col>
-              <Col span={6}>
-                <StyledFormItem
-                  label="Percentage"
-                  required
-                >
-                  <InputNumber
-                    value={row.percentage}
-                    onChange={(value) => handleRowChange(index, 'percentage', value)}
-                    placeholder="Percentage"
-                    style={{ width: '100%' }}
-                  />
-                </StyledFormItem>
-              </Col>
-              <Col span={8}>
-                <StyledFormItem
-                  label="Due Text"
-                  required
-                >
-                  <Input
-                    value={row.dueText}
-                    onChange={(e) => handleRowChange(index, 'dueText', e.target.value)}
-                    placeholder="Due upon"
-                  />
-                </StyledFormItem>
-              </Col>
-              <Col span={4} style={{ display: 'flex', alignItems: 'flex-end' }}>
-                {index === rows.length - 1 ? (
-                  <Button 
-                    type="primary" 
-                    danger 
-                    icon={<MinusOutlined />}
-                    onClick={() => removeRow(index)}
-                    disabled={rows.length <= 2}
-                    style={{ marginBottom: '4px' }}
-                  />
-                ) : (
-                  <Button 
-                    type="primary"
-                    icon={<PlusOutlined />}
-                    onClick={addRow}
-                    style={{ marginBottom: '4px' }}
-                  />
-                )}
-              </Col>
-            </ScheduleRow>
-          ))}
+          <DndProvider backend={HTML5Backend}>
+            <Form.List name="paymentPhases">
+              {(fields, { add, remove }) => (
+                <>
+                  {fields.map((field, index) => (
+                    <DraggableRow key={field.key} index={index} moveRow={moveRow}>
+                      <ScheduleRow>
+                        <Col span={1} style={{ display: 'flex', alignItems: 'center' }}>
+                          <DragHandle>
+                            <HolderOutlined />
+                          </DragHandle>
+                        </Col>
+                        <Col span={6}>
+                          <StyledFormItem
+                            label="Phase"
+                            name={[field.name, 'phase']}
+                            rules={[{ required: true, message: 'Please enter phase' }]}
+                          >
+                            <Input placeholder="Phase Name" />
+                          </StyledFormItem>
+                        </Col>
+                        <Col span={5}>
+                          <StyledFormItem
+                            label="Percentage"
+                            name={[field.name, 'percentage']}
+                            rules={[{ required: true, message: 'Please enter percentage' }]}
+                          >
+                            <InputNumber 
+                              placeholder="Percentage" 
+                              style={{ width: '100%' }} 
+                              onChange={() => setTimeout(updateTotalPercentage, 0)}
+                            />
+                          </StyledFormItem>
+                        </Col>
+                        <Col span={8}>
+                          <StyledFormItem
+                            label="Due Text"
+                            name={[field.name, 'dueText']}
+                            rules={[{ required: true, message: 'Please enter due text' }]}
+                          >
+                            <Input placeholder="Due upon" />
+                          </StyledFormItem>
+                        </Col>
+                        <Col span={4} style={{ display: 'flex', alignItems: 'flex-end' }}>
+                          {index === 0 ? (
+                            <Button 
+                              type="primary"
+                              icon={<PlusOutlined />}
+                              onClick={() => add()}
+                              style={{ marginBottom: '4px' }}
+                            />
+                          ) : (
+                            <Button 
+                              type="primary" 
+                              danger 
+                              icon={<MinusOutlined />}
+                              onClick={() => {
+                                remove(field.name);
+                                setTimeout(updateTotalPercentage, 0);
+                              }}
+                              disabled={fields.length <= 2}
+                              style={{ marginBottom: '4px' }}
+                            />
+                          )}
+                        </Col>
+                      </ScheduleRow>
+                    </DraggableRow>
+                  ))}
+                </>
+              )}
+            </Form.List>
+          </DndProvider>
 
           <TotalPercentage isValid={totalPercentage === 100}>
             Total Percentage: {totalPercentage}%
@@ -333,14 +391,6 @@ const PaymentSchedule = () => {
               size="large"
             >
               Calculate
-            </Button>
-            <Button 
-              type="default" 
-              onClick={addRow}
-              size="large"
-              icon={<PlusOutlined />}
-            >
-              Add Row
             </Button>
           </ButtonGroup>
         </Form>
@@ -355,7 +405,7 @@ const PaymentSchedule = () => {
 
             <Button 
               icon={<CopyOutlined />} 
-              onClick={handleCopy}
+              onClick={copyToClipboard}
               style={{ marginTop: '1rem' }}
               type="default"
               size="large"
