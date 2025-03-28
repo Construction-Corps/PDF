@@ -1066,7 +1066,7 @@ export default function JobsChecklistPage() {
                                                                 borderRadius: "3px",
                                                                 height: "95%",
                                                                 backgroundColor: task.progress === 1
-                                                                ? `${taskTypeInfo?.color || '#555555'}40` // 30% opacity for completed tasks
+                                                                ? `${taskTypeInfo?.color || '#555555'}30` // 30% opacity for completed tasks
                                                                 : taskTypeInfo?.color || '#555555',
                                                                 cursor: 'pointer'
                                                             }}
