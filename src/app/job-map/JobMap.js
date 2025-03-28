@@ -270,6 +270,7 @@ const JobMap = () => {
             <MapStyles />
             <TopBar>
                 <Switch
+                    className='ml-5'
                     checked={showJobs}
                     onChange={setShowJobs}
                     checkedChildren="Hide Job List"

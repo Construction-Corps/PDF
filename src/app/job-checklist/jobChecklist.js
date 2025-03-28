@@ -703,8 +703,8 @@ export default function JobsChecklistPage() {
     }, []);
 
     return (
-        <div style={{ padding: "20px", paddingTop: isMobile ? "50px" : "0px" }}>
-            <h2>Jobs Checklist</h2>
+        <div style={{ padding: "20px", paddingTop: isMobile ? "50px" : "12px" }}>
+            <h2 className='ml-4 pl-1 '>Jobs Checklist</h2>
             
             <JobStatusFilter 
                 onStatusChange={handleStatusChange} 
@@ -857,9 +857,6 @@ export default function JobsChecklistPage() {
                             borderBottom: "2px solid #f0f0f0",
                             fontWeight: "bold"
                         }}>
-                            <div className="job-header">
-                                Job
-                            </div>
                             {/* Task headers will be implicit */}
                         </div>
                         

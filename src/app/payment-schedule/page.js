@@ -350,15 +350,17 @@ const PaymentSchedule = () => {
                             <Input placeholder="Due upon" />
                           </StyledFormItem>
                         </Col>
-                        <Col span={4} style={{ display: 'flex', alignItems: 'flex-end' }}>
-                          {index === 0 ? (
-                            <Button 
-                              type="primary"
-                              icon={<PlusOutlined />}
-                              onClick={() => add()}
-                              style={{ marginBottom: '4px' }}
-                            />
-                          ) : (
+                        <Col span={4} style={{ display: 'flex', alignItems: 'flex-end', gap: '4px' }}>
+                          <Button 
+                            type="primary"
+                            icon={<PlusOutlined />}
+                            onClick={() => {
+                              // Add new row after the current index
+                              add({}, index + 1);
+                            }}
+                            style={{ marginBottom: '4px' }}
+                          />
+                          {fields.length > 1 && (
                             <Button 
                               type="primary" 
                               danger 
@@ -367,7 +369,6 @@ const PaymentSchedule = () => {
                                 remove(field.name);
                                 setTimeout(updateTotalPercentage, 0);
                               }}
-                              disabled={fields.length <= 2}
                               style={{ marginBottom: '4px' }}
                             />
                           )}
