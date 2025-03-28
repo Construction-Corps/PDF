@@ -13,7 +13,7 @@ const Navigation = () => {
       {/* Hamburger menu button */}
       <Button
         icon={<MenuOutlined />}
-        onClick={() => setMenuVisible({pre})}
+        onClick={() => setMenuVisible(prev => !prev)}
         style={{
           position: 'fixed',
           top: '10px',
