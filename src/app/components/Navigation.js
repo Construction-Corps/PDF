@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Button, Drawer, Menu } from 'antd';
+import { Button, Drawer, Menu, Divider } from 'antd';
 import { MenuOutlined } from '@ant-design/icons';
 import Link from 'next/link';
 
@@ -13,12 +13,12 @@ const Navigation = () => {
       {/* Hamburger menu button */}
       <Button
         icon={<MenuOutlined />}
-        onClick={() => setMenuVisible(prev => !prev)}
+        onClick={() => setMenuVisible(true)}
         style={{
           position: 'fixed',
-          top: '10px',
-          left: '10px',
-          zIndex: 1400
+          top: '20px',
+          left: '20px',
+          zIndex: 1000
         }}
       />
       
@@ -45,6 +45,23 @@ const Navigation = () => {
             <Link href="/job-checklist">Job Checklist</Link>
           </Menu.Item>
         </Menu>
+        
+        <Divider style={{ margin: '24px 0 16px' }} />
+        
+        <div style={{ padding: '0 16px' }}>
+          <h4 style={{ fontSize: '14px', color: '#666', marginBottom: '12px' }}>Legal</h4>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            <Link href="/privacy-policy" style={{ color: '#333', fontSize: '14px' }}>
+              Privacy Policy
+            </Link>
+            <Link href="/terms" style={{ color: '#333', fontSize: '14px' }}>
+              Terms of Service
+            </Link>
+            <Link href="/data-deletion" style={{ color: '#333', fontSize: '14px' }}>
+              Data Deletion Request
+            </Link>
+          </div>
+        </div>
       </Drawer>
     </>
   );
