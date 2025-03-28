@@ -1042,7 +1042,9 @@ export default function JobsChecklistPage() {
                                                         padding: isMinimized ? "0" : "8px",
                                                         position: "relative",
                                                         cursor: "pointer",
-                                                        backgroundColor: task.progress === 1 ? (isSelected ? "rgba(15, 83, 148, 0.1)" : "rgba(82, 97, 103, 0.1)" ) : (isSelected ? "rgba(24, 144, 255, 0.1)" : "transparent"),
+                                                        backgroundColor: task.progress === 1 ?
+                                                         (isSelected ? "rgba(15, 83, 148, 0.1)" : "rgba(82, 97, 103, 0.05)" ) :
+                                                         (isSelected ? "rgba(24, 144, 255, 0.1)" : "transparent"),
                                                         transition: "width 0.3s"
                                                     }}
                                                     onClick={(e) => handleTaskSelect(e, task.id, job.id)}
@@ -1064,7 +1066,7 @@ export default function JobsChecklistPage() {
                                                                 borderRadius: "3px",
                                                                 height: "95%",
                                                                 backgroundColor: task.progress === 1
-                                                                ? `${taskTypeInfo?.color || '#555555'}80` // 50% opacity for completed tasks
+                                                                ? `${taskTypeInfo?.color || '#555555'}40` // 30% opacity for completed tasks
                                                                 : taskTypeInfo?.color || '#555555',
                                                                 cursor: 'pointer'
                                                             }}
