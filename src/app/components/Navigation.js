@@ -16,8 +16,8 @@ const Navigation = () => {
         onClick={() => setMenuVisible(true)}
         style={{
           position: 'fixed',
-          top: '20px',
-          left: '20px',
+          top: '10px',
+          left: '10px',
           zIndex: 1000
         }}
       />

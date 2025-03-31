@@ -8,8 +8,18 @@ export const metadata = {
 
 export default function PrivacyPolicy() {
   return (
-    <div style={{ padding: '50px', maxWidth: '1000px', margin: '0 auto' }}>
-      <Card style={{ padding: '20px' }}>
+    <div style={{ 
+      padding: '50px', 
+      maxWidth: '1000px', 
+      margin: '0 auto',
+      minHeight: '100vh',
+      overflow: 'auto'
+    }}>
+      <Card style={{ 
+        padding: '20px',
+        height: 'auto',
+        overflow: 'visible'
+      }}>
         <h1>Privacy Policy</h1>
         <p>Last Updated: {new Date().toLocaleDateString()}</p>
 

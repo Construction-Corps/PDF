@@ -9,8 +9,18 @@ export const metadata = {
 
 export default function DataDeletion() {
   return (
-    <div style={{ padding: '50px', maxWidth: '1000px', margin: '0 auto' }}>
-      <Card style={{ padding: '20px' }}>
+    <div style={{ 
+      padding: '50px', 
+      maxWidth: '1000px', 
+      margin: '0 auto',
+      minHeight: '100vh',
+      overflow: 'auto'
+    }}>
+      <Card style={{ 
+        padding: '20px',
+        height: 'auto',
+        overflow: 'visible'
+      }}>
         <h1>Data Deletion Request</h1>
         <p>
           In accordance with data protection regulations, you have the right to request the deletion of your personal data from our third-party JobTread Tools application.
