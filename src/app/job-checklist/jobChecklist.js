@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback, useRef } from "react";
-import { fetchJobTread } from "../../utils/JobTreadApi";
+import { fetchJobTread, updateJobTread   } from "../../utils/JobTreadApi";
 import { HTMLTooltip } from "../components/formatters/fields";
 import JobStatusFilter from "../components/JobStatusFilter";
 import JobTile from "../components/JobTile";
@@ -48,6 +48,8 @@ export default function JobsChecklistPage() {
         managerOptions: []
     });
     const [loadingFieldOptions, setLoadingFieldOptions] = useState(true);
+
+    const [extraFields, setExtraFields] = useState(false);
     
     const [filterParams, setFilterParams] = useState({
         statuses: selectedStatuses,
@@ -331,7 +333,7 @@ export default function JobsChecklistPage() {
                     },
                 },
             };
-            const result = await fetchJobTread(query);
+            const result = await updateJobTread(query);
             
             // Optionally re-synchronize with the data returned
             if (result?.updateTask?.task) {
@@ -704,8 +706,10 @@ export default function JobsChecklistPage() {
 
     return (
         <div style={{ padding: "20px", paddingTop: isMobile ? "50px" : "12px" }}>
-            <h2 className='ml-4 pl-1 '>Jobs Checklist</h2>
-            
+            <div style={{ display: "flex", alignItems: "center" }}>
+                <h2 className='ml-4 pl-1'>Jobs Checklist</h2>
+                <Button className='ml-2 mt-n1' icon={<ArrowsAltOutlined />} onClick={() => setExtraFields(!extraFields)}/>
+            </div>
             <JobStatusFilter 
                 onStatusChange={handleStatusChange} 
                 onSearchChange={handleSearchChange}
@@ -898,7 +902,7 @@ export default function JobsChecklistPage() {
                                             marginBottom: "5px"
                                         }}>
                                             <div style={{ fontWeight: "bold" }}>{job.name}</div>
-                                            <div style={{ display: "flex" }}>
+                                            <div style={{ display: "flex", alignSelf: "flex-start"  }}>
                                             <Tooltip
                                                     title="Open in JobTread"
                                                     options={{
@@ -945,7 +949,7 @@ export default function JobsChecklistPage() {
                                             </div>
                                         </div>
                                         
-                                        <JobFieldEditors 
+                                        {extraFields &&     <JobFieldEditors 
                                             jobId={job.id}
                                             initialValues={{
                                                 estimator: estimator,
@@ -968,7 +972,7 @@ export default function JobsChecklistPage() {
                                                     )
                                                 );
                                             }}
-                                        />
+                                        />}
                                         
                                         <div style={{ 
                                             marginTop: "-10px",

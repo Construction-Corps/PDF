@@ -1,6 +1,6 @@
 import { toast } from 'react-toastify';
 
-const PROXY_ENDPOINT = "https://be.humanagement.io/actions/api/jobtread-proxy/";
+const PROXY_ENDPOINT = "https://ccbe.onrender.com/jobtread-proxy/";
 const GRANT_KEY = "22SkCV5JXCtY6eKk5w2ZWBsyhpBBrr6Lea";
 const ORGANIZATION_ID = "22NwWhUAf6VB";
 

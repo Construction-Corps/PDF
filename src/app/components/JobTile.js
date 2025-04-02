@@ -28,7 +28,7 @@ const debouncedAddComment = debounce(async (jobId, comment) => {
       }
     };
     
-    return await fetchJobTread(query);
+    return await updateJobTread(query);
   } catch (error) {
     console.error("Error adding comment:", error);
   }
