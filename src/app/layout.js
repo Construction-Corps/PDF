@@ -6,6 +6,7 @@ import 'antd/dist/reset.css'
 import { ToastContainer } from 'react-toastify'
 import 'react-toastify/dist/ReactToastify.css'
 import { ThemeProvider } from './contexts/ThemeContext'
+import { AuthProvider } from '../contexts/AuthContext'
 import Navigation from './components/Navigation'
 
 const inter = Inter({ subsets: ['latin'] })
@@ -24,14 +25,16 @@ export default function RootLayout({ children }) {
       />
       <body className={inter.className}>
         <ThemeProvider>
-          <ConfigProvider
-            theme={{
-              algorithm: [theme.defaultAlgorithm, theme.darkAlgorithm],
-            }}
-          >
-            <Navigation />
-            {children}
-          </ConfigProvider>
+          <AuthProvider>
+            <ConfigProvider
+              theme={{
+                algorithm: [theme.defaultAlgorithm, theme.darkAlgorithm],
+              }}
+            >
+              <Navigation />
+              {children}
+            </ConfigProvider>
+          </AuthProvider>
         </ThemeProvider>
         <ToastContainer position="top-right" autoClose={3000} />
       </body>

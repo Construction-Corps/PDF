@@ -36,6 +36,9 @@ const _callJobTreadApi = async (customQuery, options = {}) => {
     successMessage = "Operation completed successfully" 
   } = options;
   
+  // Get auth token
+  const authToken = typeof localStorage !== 'undefined' ? localStorage.getItem('authToken') : null;
+  
   // Generate 5-letter key for the query
   const queryKey = generateQueryKey(customQuery);
   
@@ -65,11 +68,36 @@ const _callJobTreadApi = async (customQuery, options = {}) => {
     // Append the query key to the URL
     const url = `${PROXY_ENDPOINT}?${queryKey}`;
     
+    const headers = { 
+      "Content-Type": "application/json" 
+    };
+    
+    // Add auth token if available
+    if (authToken) {
+      headers["Authorization"] = `Token ${authToken}`;
+    }
+    
     const response = await fetch(url, {
       method: method,
-      headers: { "Content-Type": "application/json" },
+      headers: headers,
       body: JSON.stringify(baseQuery)
     });
+    
+    // Handle unauthorized response
+    if (response.status === 401) {
+      // Clear token and redirect to login
+      if (typeof localStorage !== 'undefined') {
+        localStorage.removeItem('authToken');
+        localStorage.removeItem('user');
+      }
+      
+      // Use window.location for client-side navigation in utility functions
+      if (typeof window !== 'undefined') {
+        toast.error("Your session has expired. Please log in again.");
+        window.location.href = '/login';
+      }
+      throw new Error("Unauthorized - Please log in");
+    }
     
     const responseData = await response.json();
     

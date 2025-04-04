@@ -2,6 +2,7 @@
 
 import { Layout, Button, Input, Space } from 'antd'
 import ThemeSwitch from '../components/ThemeSwitch'
+import ProtectedRoute from '../../components/ProtectedRoute'
 
 import JobsChecklistPage from './jobChecklist'
 
@@ -31,7 +32,9 @@ export default function Home() {
         height: 'calc(100vh - 0px)',
         width: '100%'
       }}>
+        <ProtectedRoute>
           <JobsChecklistPage />
+        </ProtectedRoute>
       </Content>
     </Layout>
   )

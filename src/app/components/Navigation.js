@@ -2,11 +2,13 @@
 
 import { useState } from 'react';
 import { Button, Drawer, Menu, Divider } from 'antd';
-import { MenuOutlined } from '@ant-design/icons';
+import { MenuOutlined, LoginOutlined, LogoutOutlined, UserOutlined } from '@ant-design/icons';
 import Link from 'next/link';
+import { useAuth } from '../../contexts/AuthContext';
 
 const Navigation = () => {
   const [menuVisible, setMenuVisible] = useState(false);
+  const { isAuthenticated, user, logout } = useAuth();
   
   return (
     <>
@@ -35,15 +37,42 @@ const Navigation = () => {
           <Menu.Item key="home">
             <Link href="/">Home</Link>
           </Menu.Item>
-          <Menu.Item key="job-map">
-            <Link href="/job-map">Job Map</Link>
-          </Menu.Item>
-          <Menu.Item key="payment-schedule">
-            <Link href="/payment-schedule">Payment Schedule</Link>
-          </Menu.Item>
-          <Menu.Item key="job-checklist">
-            <Link href="/job-checklist">Job Checklist</Link>
-          </Menu.Item>
+          
+          {isAuthenticated ? (
+            <>
+              <Menu.Item key="job-map">
+                <Link href="/job-map">Job Map</Link>
+              </Menu.Item>
+              <Menu.Item key="payment-schedule">
+                <Link href="/payment-schedule">Payment Schedule</Link>
+              </Menu.Item>
+              <Menu.Item key="job-checklist">
+                <Link href="/job-checklist">Job Checklist</Link>
+              </Menu.Item>
+            </>
+          ) : null}
+        </Menu>
+        
+        <Divider style={{ margin: '24px 0 16px' }} />
+        
+        {/* Auth menu items */}
+        <Menu mode="vertical">
+          {isAuthenticated ? (
+            <>
+              <Menu.Item key="user" disabled style={{ color: '#1890ff' }}>
+                <UserOutlined /> {user?.name || user?.email || 'User'}
+              </Menu.Item>
+              <Menu.Item key="logout" onClick={logout}>
+                <LogoutOutlined /> Logout
+              </Menu.Item>
+            </>
+          ) : (
+            <Menu.Item key="login">
+              <Link href="/login">
+                <LoginOutlined /> Login
+              </Link>
+            </Menu.Item>
+          )}
         </Menu>
         
         <Divider style={{ margin: '24px 0 16px' }} />
