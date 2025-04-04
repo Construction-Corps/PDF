@@ -3,7 +3,7 @@ import { fetchJobTread, updateJobTread   } from "../../utils/JobTreadApi";
 import { HTMLTooltip } from "../components/formatters/fields";
 import JobStatusFilter from "../components/JobStatusFilter";
 import JobTile from "../components/JobTile";
-import { CaretRightOutlined, CaretDownOutlined, VerticalAlignMiddleOutlined, ArrowsAltOutlined, LinkOutlined, ExportOutlined } from "@ant-design/icons";
+import { CaretRightOutlined, CaretDownOutlined, VerticalAlignMiddleOutlined, ArrowsAltOutlined, ShrinkOutlined, ExportOutlined } from "@ant-design/icons";
 import dayjs from 'dayjs';
 import { Button, Tooltip } from 'antd';
 import JobFieldEditors from '../components/JobFieldEditors';
@@ -49,7 +49,7 @@ export default function JobsChecklistPage() {
     });
     const [loadingFieldOptions, setLoadingFieldOptions] = useState(true);
 
-    const [extraFields, setExtraFields] = useState(false);
+    const [extraFields, setExtraFields] = useState(true);
     
     const [filterParams, setFilterParams] = useState({
         statuses: selectedStatuses,
@@ -688,7 +688,7 @@ export default function JobsChecklistPage() {
         <div style={{ padding: "20px", paddingTop: isMobile ? "50px" : "12px" }}>
             <div style={{ display: "flex", alignItems: "center" }}>
                 <h2 className='ml-4 pl-1'>Jobs Checklist</h2>
-                <Button className='ml-2 mt-n1' icon={<ArrowsAltOutlined />} onClick={() => setExtraFields(!extraFields)}/>
+                <Button className='ml-2 mt-n1' icon={extraFields ? <ArrowsAltOutlined /> : <ShrinkOutlined />} onClick={() => setExtraFields(!extraFields)}/>
             </div>
             <JobStatusFilter 
                 onStatusChange={handleStatusChange} 
