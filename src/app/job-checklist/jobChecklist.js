@@ -443,58 +443,38 @@ export default function JobsChecklistPage() {
         }
     };
 
-    // Modify loadMoreJobs to check the count from last request
+    // Simplify loadMoreJobs to only check necessary conditions
     const loadMoreJobs = useCallback(() => {
-        console.log("loadMoreJobs", { lastRequestCount, nextPageToken, loadingMore });
-        
-        // Only load more if we got a full page (10 items) in the last request
-        // AND we have a nextPageToken AND we're not already loading
-        if (lastRequestCount === 10 && nextPageToken && !loadingMore) {
+        if (nextPageToken && !loadingMore) {
+            console.log("Loading more jobs...");
             setLoadingMore(true);
             fetchJobs(selectedStatuses, nextPageToken, true);
-        } else {
-            console.log("Skipping load more - received less than 10 jobs in last request or no token");
         }
-    }, [nextPageToken, selectedStatuses, loadingMore, fetchJobs, lastRequestCount]);
+    }, [nextPageToken, selectedStatuses, loadingMore, fetchJobs]);
 
-    // Add scroll event listener to detect when user reaches bottom of the page
+    const loadMoreTriggerRef = useRef(null);
+
     useEffect(() => {
-        const handleScroll = () => {
-            // Adding specific console logs to debug the scroll behavior
-            console.log("=== SCROLL EVENT TRIGGERED ===");
-            
-            // Calculate values for scroll position detection
-            const windowHeight = window.innerHeight;
-            const scrollTop = window.scrollY || document.documentElement.scrollTop;
-            const docHeight = document.documentElement.scrollHeight;
-            const scrolledToBottom = windowHeight + scrollTop >= docHeight - 200;
-            
-            console.log({
-                windowHeight,
-                scrollTop,
-                docHeight,
-                scrolledToBottom
-            });
-            
-            if (scrolledToBottom) {
-                console.log("LOADING MORE JOBS!");
-                loadMoreJobs();
-            }
-        };
+        if (!loadMoreTriggerRef.current) return;
         
-        console.log("Adding scroll event listener");
-        window.addEventListener('scroll', handleScroll);
+        const observer = new IntersectionObserver(
+            ([entry]) => {
+                if (entry.isIntersecting && !loadingMore && nextPageToken) {
+                    console.log("Load more trigger is visible!");
+                    loadMoreJobs();
+                }
+            },
+            { threshold: 0.01 }
+        );
         
-        // Call once on mount to check if initial content doesn't fill the page
-        setTimeout(() => {
-            handleScroll();
-        }, 1000);
+        observer.observe(loadMoreTriggerRef.current);
         
         return () => {
-            console.log("Removing scroll event listener");
-            window.removeEventListener('scroll', handleScroll);
+            if (loadMoreTriggerRef.current) {
+                observer.unobserve(loadMoreTriggerRef.current);
+            }
         };
-    }, [loadMoreJobs]);
+    }, [loadMoreJobs, loadingMore, nextPageToken]);
 
     // Handle task selection with Shift key and Ctrl key support
     const handleTaskSelect = (e, taskId, jobId) => {
@@ -1142,6 +1122,12 @@ export default function JobsChecklistPage() {
                     )}
                 </div>
             )}
+            <div 
+                ref={loadMoreTriggerRef} 
+                style={{ height: "20px", marginTop: "20px" }}
+            >
+                {nextPageToken && !loadingMore && "Loading more..."}
+            </div>
         </div>
     );
 }
