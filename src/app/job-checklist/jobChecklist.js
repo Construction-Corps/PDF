@@ -1080,9 +1080,9 @@ export default function JobsChecklistPage() {
                                                                 height: "100%"
                                                             }}>
                                                                 {task.name}
-                                                                <div className="mt-auto">
+                                                                {extraFields && <div className="mt-auto">
                                                                     <span className="text-muted">{dayjs(task.startDate).format('MM/DD')} - {dayjs(task.endDate).format('MM/DD')}</span>
-                                                                </div>
+                                                                </div>}
                                                             </div>
                                                         </div>
                                                     )}
