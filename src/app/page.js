@@ -41,6 +41,20 @@ export default function DirectoryPage() {
             >
               View all jobs on a checklist
             </Card>
+            <Card 
+              title="Job Kanban - Stage" 
+              style={{ marginBottom: '20px' }}
+              extra={<Link href="/job-kanban?fieldId=22NwzQcjYUA4">Open →</Link>}
+            >
+              Manage jobs with drag-and-drop kanban by job stage
+            </Card>
+            <Card 
+              title="Job Kanban - Design Stage" 
+              style={{ marginBottom: '20px' }}
+              extra={<Link href="/job-kanban?fieldId=22P7Rp2AWjYT">Open →</Link>}
+            >
+              Manage jobs with drag-and-drop kanban by design stage
+            </Card>
             {/* Add more cards here for other sections */}
           </div>
         ) : (
