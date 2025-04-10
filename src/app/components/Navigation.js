@@ -49,6 +49,12 @@ const Navigation = () => {
               <Menu.Item key="job-checklist">
                 <Link href="/job-checklist">Job Checklist</Link>
               </Menu.Item>
+              <Menu.Item key="job-kanban-stage">
+                <Link href="/job-kanban?fieldId=22NwzQcjYUA4">Job Kanban - Stage</Link>
+              </Menu.Item>
+              <Menu.Item key="job-kanban-design-stage">
+                <Link href="/job-kanban?fieldId=22P7Rp2AWjYT">Job Kanban - Design Stage</Link>
+              </Menu.Item>
             </>
           ) : null}
         </Menu>
