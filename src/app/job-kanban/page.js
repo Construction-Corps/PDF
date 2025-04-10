@@ -599,6 +599,7 @@ export default function JobKanbanPage() {
                                     <JobCard
                                       ref={provided.innerRef}
                                       {...provided.draggableProps}
+                                      {...provided.dragHandleProps}
                                       style={{
                                         ...provided.draggableProps.style,
                                         opacity: snapshot.isDragging ? 0.8 : 1
@@ -606,11 +607,13 @@ export default function JobKanbanPage() {
                                     >
                                       <JobCardHeader 
                                         isExpanded={isExpanded}
-                                        onClick={() => toggleExpandJob(job.id)}
-                                        {...provided.dragHandleProps}
+                                        onClick={(e) => {
+                                          e.stopPropagation(); 
+                                          toggleExpandJob(job.id);
+                                        }}
                                       >
                                         <JobCardTitle>{job.name}</JobCardTitle>
-                                        <JobCardActions onClick={e => e.stopPropagation()}>
+                                        <JobCardActions>
                                           <Button 
                                             type="text" 
                                             size="small"
@@ -620,17 +623,20 @@ export default function JobKanbanPage() {
                                               window.open(`https://app.jobtread.com/jobs/${job.id}`, '_blank');
                                             }}
                                           />
-                                          {isExpanded ? 
-                                            <CaretDownOutlined /> : 
-                                            <CaretRightOutlined />
-                                          }
+                                          <div 
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                            }}
+                                          >
+                                            {isExpanded ? 
+                                              <CaretDownOutlined /> : 
+                                              <CaretRightOutlined />
+                                            }
+                                          </div>
                                         </JobCardActions>
                                       </JobCardHeader>
                                       
-                                      <div 
-                                        style={{ marginBottom: isExpanded ? 12 : 0 }}
-                                        {...provided.dragHandleProps}
-                                      >
+                                      <div style={{ marginBottom: isExpanded ? 12 : 0 }}>
                                         <div style={{ fontSize: '12px', color: 'rgba(0,0,0,0.65)' }}>
                                           {estimator} | {address}
                                         </div>
@@ -650,6 +656,7 @@ export default function JobKanbanPage() {
                                               ...jobDetails[job.id]
                                             }} 
                                             inlineStyle={true}
+                                            onClick={(e) => e.stopPropagation()}
                                           />
                                         )}
                                       </JobCardContent>
