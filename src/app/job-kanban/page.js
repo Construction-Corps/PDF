@@ -606,11 +606,11 @@ export default function JobKanbanPage() {
                                     >
                                       <JobCardHeader 
                                         isExpanded={isExpanded}
-                                        {...provided.dragHandleProps}
                                         onClick={() => toggleExpandJob(job.id)}
+                                        {...provided.dragHandleProps}
                                       >
                                         <JobCardTitle>{job.name}</JobCardTitle>
-                                        <JobCardActions>
+                                        <JobCardActions onClick={e => e.stopPropagation()}>
                                           <Button 
                                             type="text" 
                                             size="small"
@@ -627,14 +627,15 @@ export default function JobKanbanPage() {
                                         </JobCardActions>
                                       </JobCardHeader>
                                       
-                                      {/* Basic info always visible */}
-                                      <div style={{ marginBottom: isExpanded ? 12 : 0 }}>
+                                      <div 
+                                        style={{ marginBottom: isExpanded ? 12 : 0 }}
+                                        {...provided.dragHandleProps}
+                                      >
                                         <div style={{ fontSize: '12px', color: 'rgba(0,0,0,0.65)' }}>
                                           {estimator} | {address}
                                         </div>
                                       </div>
                                       
-                                      {/* Expandable content */}
                                       <JobCardContent isExpanded={isExpanded}>
                                         {isExpanded && !hasDetails && (
                                           <div style={{ padding: '10px 0', textAlign: 'center' }}>
