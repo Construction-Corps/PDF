@@ -580,6 +580,10 @@ export default function JobKanbanPage() {
                               const estimator = job.customFieldValues.nodes.find(node => 
                                 node.customField.name === "Estimator"
                               )?.value || 'Not Assigned';
+
+                              const stage = job.customFieldValues.nodes.find(node => 
+                                node.customField.name === "Stage"
+                              )?.value || 'Not Assigned';
                               
                               const productionManager = job.customFieldValues.nodes.find(node => 
                                 node.customField.name === "Production Manager"
@@ -638,7 +642,7 @@ export default function JobKanbanPage() {
                                       
                                       <div style={{ marginBottom: isExpanded ? 12 : 0 }}>
                                         <div style={{ fontSize: '12px', color: 'rgba(0,0,0,0.65)' }}>
-                                          {estimator} | {address}
+                                          {stage} | {address}
                                         </div>
                                       </div>
                                       
