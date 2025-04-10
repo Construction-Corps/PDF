@@ -372,8 +372,14 @@ export default function JobKanbanPage() {
     const newColumns = {};
     let unassignedJobs = [];
     
+    // Check if filter has selections for this fieldId
+    const hasFieldSelections = filterParams[fieldId] && filterParams[fieldId].length > 0;
+    
+    // Use selected options if available, otherwise use all stageOptions
+    const displayOptions = hasFieldSelections ? filterParams[fieldId] : stageOptions;
+    
     // Initialize columns with empty job arrays
-    stageOptions.forEach(stage => {
+    displayOptions.forEach(stage => {
       newColumns[stage] = [];
     });
     
@@ -390,8 +396,9 @@ export default function JobKanbanPage() {
         const stage = stageCfv.value;
         if (newColumns[stage]) {
           newColumns[stage].push(job);
-        } else if (stage !== 'Not Set') {
-          // For any stage not in our options, create a new column
+        } else if (!hasFieldSelections && stage !== 'Not Set') {
+          // For any stage not in our options (but only if we're showing all stages)
+          // create a new column
           newColumns[stage] = [job];
         }
       }
@@ -409,7 +416,7 @@ export default function JobKanbanPage() {
     } else {
       setColumns(newColumns);
     }
-  }, [stageOptions, jobs, fieldId]);
+  }, [stageOptions, jobs, fieldId, filterParams]);
 
   // Fetch jobs when filters change
   useEffect(() => {
