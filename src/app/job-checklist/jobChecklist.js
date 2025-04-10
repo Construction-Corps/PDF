@@ -18,6 +18,7 @@ function sortTasksByStartDate(tasks) {
     });
 }
 
+
 export default function JobsChecklistPage() {
     const [jobs, setJobs] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -51,11 +52,9 @@ export default function JobsChecklistPage() {
 
     const [extraFields, setExtraFields] = useState(true);
     
+    // Add state for filter parameters
     const [filterParams, setFilterParams] = useState({
-        statuses: selectedStatuses,
-        estimators: [],
-        managers: [],
-        search: searchTerm,
+        search: "",
         sort: { field: "createdAt", order: "desc" }
     });
     
@@ -73,11 +72,53 @@ export default function JobsChecklistPage() {
     const [lastRequestCount, setLastRequestCount] = useState(10);
 
     // Extract fetch jobs into a callback to avoid recreation on each render
-    const fetchJobs = useCallback(async (statuses, pageToken = "", append = false) => {
-        // if (!statuses || statuses.length === 0) return;
-        
+    const fetchJobs = useCallback(async (pageToken = "", append = false) => {
         append ? setLoadingMore(true) : setLoading(true);
         try {
+            // Build dynamic query based on filterParams
+            const withObject = {};
+            const whereConditions = [
+                ["closedOn", "=", null],
+                ...(filterParams.search ? [["name", "like", `%${filterParams.search}%`]] : []),
+            ];
+            
+            // Add fields from filterParams that have IDs as keys
+            Object.keys(filterParams).forEach(key => {
+                // Skip non-field properties
+                if (key === 'search' || key === 'sort') {
+                    return;
+                }
+                
+                // If this looks like a field ID
+                if (key.startsWith('22') && Array.isArray(filterParams[key]) && filterParams[key].length > 0) {
+                    // Create alias for this field
+                    const alias = `cf_${key.substring(key.length - 5)}`;
+                    
+                    // Add to the with object
+                    withObject[alias] = {
+                        "_": "customFieldValues",
+                        "$": {
+                            "where": [
+                                ["customField", "id"],
+                                key
+                            ]
+                        },
+                        "values": {
+                            "$": {
+                                "field": "value"
+                            }
+                        }
+                    };
+                    
+                    // Add to where conditions
+                    whereConditions.push({
+                        "or": filterParams[key].map(value => 
+                            [[alias, "values"], "=", value]
+                        )
+                    });
+                }
+            });
+            
             // Example query to get all jobs & tasks
             const jobsQuery = {
                 "organization": {
@@ -89,71 +130,13 @@ export default function JobsChecklistPage() {
                             "size": 10,
                             "sortBy": [
                                 {
-                                    "field": filterParams.sort.field,
-                                    "order": filterParams.sort.order
+                                    "field": filterParams.sort?.field || "createdAt",
+                                    "order": filterParams.sort?.order || "desc"
                                 }
                             ],
-                            "with": {
-                                "cf": {
-                                    "_": "customFieldValues",
-                                    "$": {
-                                        "where": [
-                                            ["customField", "id"],
-                                            "22NwzQcjYUA4"
-                                        ]
-                                    },
-                                    "values": {
-                                        "$": {
-                                            "field": "value"
-                                        }
-                                    }
-                                    
-                                },
-                                cf2: {
-                                    "_": "customFieldValues",
-                                    "$": {
-                                        "where": [["customField", "id"], "=", "22NwWybgjBTW"]
-                                    },
-                                    "values": {
-                                        "$": {
-                                            "field": "value"
-                                        }
-                                    }
-                                },
-                                cf3: {
-                                    "_": "customFieldValues",
-                                    "$": {
-                                        "where": [["customField", "id"], "=", "22P2ZNybRiyG"]
-                                    },
-                                    "values": {
-                                        "$": {
-                                            "field": "value"
-                                        }
-                                    }
-                                }
-                            },
+                            "with": withObject,
                             "where": {
-                                "and": [
-                                    ["closedOn","=",null],
-                                    ...(filterParams.search ? [["name", "like", `%${filterParams.search}%`]] : []),
-                                    
-                                    ...(filterParams.statuses.length > 0 ? [{
-                                        "or": statuses.map(status => 
-                                            [["cf", "values"], "=", status]
-                                        )
-                                    }] : []),
-                                    
-                                    ...(filterParams.estimators.length > 0 ? [{
-                                        "or": filterParams.estimators.map(estimator => 
-                                            [["cf2", "values"], "=", estimator]
-                                        )
-                                    }] : []),
-                                    ...(filterParams.managers.length > 0 ? [{
-                                        "or": filterParams.managers.map(manager => 
-                                            [["cf", "values"], "=", manager]
-                                        )
-                                    }] : [])
-                                ],
+                                "and": whereConditions
                             }
                         },
                         "nodes": {
@@ -171,6 +154,7 @@ export default function JobsChecklistPage() {
                                 "nodes": {
                                     "value": {},
                                     "customField": {
+                                        "id": {},
                                         "name": {}
                                     }
                                 }
@@ -267,16 +251,21 @@ export default function JobsChecklistPage() {
         }
     }, []);
     
-    // Only run fetchJobs when filters change
+    // Track field options loaded from JobStatusFilter
+    const handleFieldOptionsLoaded = useCallback((options) => {
+        console.log("Field options loaded:", options);
+    }, []);
+    
+    // Handle filters changed
+    const handleFiltersChange = useCallback((filters) => {
+        console.log("Filters changed:", filters);
+        setFilterParams(filters);
+    }, []);
+    
+    // Fetch jobs when filters change
     useEffect(() => {
-        // if (selectedStatuses.length > 0) {
-            fetchTaskTypes(selectedStatuses, "");
-            fetchJobs(selectedStatuses, "");
-            setNextPageToken("");
-            // Clear isolation when filters change
-            setIsolatedJobId(null);
-        // }
-    }, [filterParams, fetchJobs]);
+        fetchJobs();
+    }, [fetchJobs]);
     
     // Handle status changes from the filter component
     const handleStatusChange = useCallback((newStatuses) => {
@@ -448,9 +437,9 @@ export default function JobsChecklistPage() {
         if (nextPageToken && !loadingMore) {
             console.log("Loading more jobs...");
             setLoadingMore(true);
-            fetchJobs(selectedStatuses, nextPageToken, true);
+            fetchJobs(nextPageToken, true);
         }
-    }, [nextPageToken, selectedStatuses, loadingMore, fetchJobs]);
+    }, [nextPageToken, loadingMore, fetchJobs]);
 
     const loadMoreTriggerRef = useRef(null);
 
@@ -671,19 +660,6 @@ export default function JobsChecklistPage() {
         });
     };
 
-    // Handler for when field options are loaded
-    const handleFieldOptionsLoaded = useCallback((options) => {
-        setFieldOptions(options);
-        setLoadingFieldOptions(false);
-    }, []);
-
-    // Handle combined filter changes
-    const handleFiltersChange = useCallback((filters) => {
-        setFilterParams(filters);
-        setSelectedStatuses(filters.statuses);
-        setSearchTerm(filters.search);
-    }, []);
-
     return (
         <div style={{ padding: "20px", paddingTop: isMobile ? "50px" : "12px" }}>
             <div style={{ display: "flex", alignItems: "center" }}>
@@ -691,101 +667,8 @@ export default function JobsChecklistPage() {
                 <Button className='ml-2 mt-n1' icon={extraFields ? <ArrowsAltOutlined /> : <ShrinkOutlined />} onClick={() => setExtraFields(!extraFields)}/>
             </div>
             <JobStatusFilter 
-                onStatusChange={handleStatusChange} 
-                onSearchChange={handleSearchChange}
-                onFieldOptionsLoaded={handleFieldOptionsLoaded}
                 onFiltersChange={handleFiltersChange}
-                extraButtons={
-                    <div 
-                    style={{ 
-                        padding: "2px", 
-                        paddingX: "8px",
-                        background: "#f0f8ff", 
-                        border: "1px solid #91d5ff",
-                        borderRadius: "4px",
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "center"
-                    }}
-                    >
-                {selectedTasks.length > 0 ? (
-                    <>
-                        {!isMobile && <span className="mr-2">{selectedTasks.length} tasks selected</span>}
-                        <div>
-                            <Button 
-                                type="primary" 
-                                size="small" 
-                                onClick={() => {
-                                    setMinimizedTasks(prev => {
-                                        const newMinimized = [...prev];
-                                        selectedTasks.forEach(task => {
-                                            if (!newMinimized.some(t => t.taskId === task.taskId && t.jobId === task.jobId)) {
-                                                newMinimized.push(task);
-                                            }
-                                        });
-                                        
-                                        localStorage.setItem('minimizedTasks', JSON.stringify(newMinimized));
-                                        return newMinimized;
-                                    });
-                                    setSelectedTasks([]);
-                                }}
-                                className="mr-2"
-                            >
-                                {isMobile ? "-" : "Minimize Selected (-)"}
-                            </Button>
-                            <Button 
-                                size="small" 
-                                onClick={() => {
-                                    setMinimizedTasks(prev => {
-                                        const newMinimized = prev.filter(t => 
-                                            !selectedTasks.some(st => st.taskId === t.taskId && st.jobId === t.jobId)
-                                        );
-                                        
-                                        localStorage.setItem('minimizedTasks', JSON.stringify(newMinimized));
-                                        return newMinimized;
-                                    });
-                                    setSelectedTasks([]);
-                                }}
-                            >
-                                {isMobile ? "+" : "Restore Selected (+)"}
-                            </Button>
-                            <Button 
-                                style={{ marginLeft: "8px" }}
-                                size="small" 
-                                onClick={() => setSelectedTasks([])}
-                            >
-                                {isMobile ? "✕" : "Deselect All"}
-                            </Button>
-                        </div>
-                    </>
-                ): (
-                < >
-                    {!isMobile && <div className="mr-2 text-black-all">
-                        {minimizedTasks.length > 0 ? 
-                            `${minimizedTasks.length} tasks minimized` : 
-                            "All tasks expanded"}
-                    </div>}
-                    <div>
-                        <Button 
-                            type="primary" 
-                            size="small" 
-                            onClick={minimizedTasks.length > 0 ? handleExpandAllTasks : handleMinimizeAllTasks}
-                            className="mr-2"
-                        >
-                            {isMobile ? 
-                                (minimizedTasks.length > 0 ? "↕️" : "↓") : 
-                                (minimizedTasks.length > 0 ? "Expand All Tasks" : "Minimize All Tasks")}
-                        </Button>
-                        <Button 
-                            size="small" 
-                            onClick={handleMinimizeCompletedTasks}
-                        >
-                            {isMobile ? "✓↓" : "Minimize Completed"}
-                        </Button>
-                    </div>
-                </>)}
-                </div>
-                }
+                onFieldOptionsLoaded={handleFieldOptionsLoaded}
             />
             
             {isolatedJobId && (
@@ -809,9 +692,6 @@ export default function JobsChecklistPage() {
                     </Button>
                 </div>
             )}
-            
-            
-            
             
             {loading ? (
                 <div>Loading Jobs...</div>

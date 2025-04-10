@@ -85,333 +85,323 @@ const SectionTitle = styled.div`
   font-size: ${props => props.isMobile ? '14px' : '16px'};
 `;
 
-// Default selections that match current JobChecklist
-const DEFAULT_SELECTIONS = [
-  "Job Started 🔨",
-  "Job Mid Way ⚒️", 
-  "Job Complete ✅", 
-  "Pre-Production 🗓️", 
-  "Awaiting Payment ⏲️"
+// Standard field IDs - centralized here only
+const STANDARD_FIELDS = [
+  { id: "22NwzQcjYUA4" }, // Stage
+  { id: "22NwWybgjBTW" }, // Estimator
+  { id: "22P2ZNybRiyG" }  // Manager
 ];
 
-// Field IDs
-const ESTIMATOR_FIELD_ID = "22NwWybgjBTW";
-const STAGE_FIELD_ID = "22NwzQcjYUA4";
-const MANAGER_FIELD_ID = "22P2ZNybRiyG";
-
-// localStorage key for status selections
-const STORAGE_KEY = 'jobStatusFilterSelections';
-const SEARCH_KEY = 'jobStatusFilterSearch';
-
-// Add localStorage keys for new filters
-const ESTIMATOR_KEY = 'jobEstimatorFilterSelections';
-const MANAGER_KEY = 'jobManagerFilterSelections';
-const SORT_KEY = 'jobSortSelection';
-
-
 const JobStatusFilter = ({ 
-  onStatusChange, 
-  onSearchChange, 
+  onFiltersChange,
   onFieldOptionsLoaded,
-  onSortChange, // New prop for sorting
-  onFiltersChange, // New prop for combined filter changes
-  initialSelections = null, 
+  customFieldId = null, // Additional field ID from parent
+  initialSelections = null,
   extraButtons = null 
 }) => {
-  // Add window size state
   const { isMobile } = useWindowSize();
-  
-  // State for all available statuses
-  const [allStatuses, setAllStatuses] = useState([]);
+  const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   
-  // State for all options
-  const [fieldOptions, setFieldOptions] = useState({
-    estimatorOptions: [],
-    stageOptions: [],
-    managerOptions: []
+  // State for all field data
+  const [fieldsData, setFieldsData] = useState([]);
+  
+  // Unified filter state
+  const [filterState, setFilterState] = useState({
+    search: "",
+    sort: { field: "createdAt", order: "desc" }
   });
   
-  // Initialize from localStorage or fall back to defaults
-  const [selectedStatuses, setSelectedStatuses] = useState(() => {
+  // Helper to load from localStorage
+  const loadFromStorage = (key, defaultValue) => {
     if (typeof window !== 'undefined') {
       try {
-        const stored = localStorage.getItem(STORAGE_KEY);
-        if (stored) {
-          return JSON.parse(stored);
-        }
-      } catch (e) {
-        console.error('Error reading from localStorage', e);
-      }
-
-    }
-    return initialSelections || DEFAULT_SELECTIONS;
-  });
-  
-  // Initialize search term from localStorage
-  const [searchTerm, setSearchTerm] = useState(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        return localStorage.getItem(SEARCH_KEY) || "";
-      } catch (e) {
-        console.error('Error reading search from localStorage', e);
-      }
-    }
-    return "";
-  });
-  
-  // Add new state for estimator and manager filters
-  const [selectedEstimators, setSelectedEstimators] = useState(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const stored = localStorage.getItem(ESTIMATOR_KEY);
+        const stored = localStorage.getItem(key);
         if (stored) return JSON.parse(stored);
       } catch (e) {
         console.error('Error reading from localStorage', e);
       }
     }
-    return [];
-  });
+    return defaultValue;
+  };
   
-  const [selectedManagers, setSelectedManagers] = useState(() => {
+  // Helper to save to localStorage
+  const saveToStorage = (key, value) => {
     if (typeof window !== 'undefined') {
       try {
-        const stored = localStorage.getItem(MANAGER_KEY);
-        if (stored) return JSON.parse(stored);
-      } catch (e) {
-        console.error('Error reading from localStorage', e);
-      }
-    }
-    return [];
-  });
-  
-  // Add sort state
-  const [sortOption, setSortOption] = useState(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const stored = localStorage.getItem(SORT_KEY);
-        if (stored) return JSON.parse(stored);
-      } catch (e) {
-        console.error('Error reading from localStorage', e);
-      }
-    }
-    return { field: "createdAt", order: "desc" };
-  });
-  
-  const [open, setOpen] = useState(false);
-  
-  // Setup debounce function for filter changes
-  const debouncedFilterChange = useCallback(
-    debounce(() => {
-      const filters = {
-        statuses: selectedStatuses,
-        estimators: selectedEstimators,
-        managers: selectedManagers,
-        search: searchTerm,
-        sort: sortOption
-      };
-      
-      if (onFiltersChange) {
-        onFiltersChange(filters);
-      }
-      
-      // Also call individual handlers for backward compatibility
-      if (onStatusChange) onStatusChange(selectedStatuses);
-      if (onSearchChange) onSearchChange(searchTerm);
-      if (onSortChange) onSortChange(sortOption);
-    }, 500),
-    [selectedStatuses, selectedEstimators, selectedManagers, searchTerm, sortOption]
-  );
-  
-  // Fetch all field options in one call
-  const fetchAllFieldOptions = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    
-    try {
-      // Query to get all custom fields options
-      const query = {
-        "organization": {
-          "$": {
-            "id": "22NwWhUAf6VB"
-          },
-          "id": {},
-          "customFields": {
-            "nodes": {
-              "id": {},
-              "name": {},
-              "options": {}
-            },
-            "$": {
-              "where": {
-                "or": [
-                  ["id", "=", ESTIMATOR_FIELD_ID],
-                  ["id", "=", STAGE_FIELD_ID],
-                  ["id", "=", MANAGER_FIELD_ID]
-                ]
-              }
-            }
-          }
-        }
-      };
-      
-      const data = await fetchJobTread(query);
-      
-      if (data?.organization?.customFields?.nodes) {
-        const fields = data.organization.customFields.nodes;
-        
-        // Collect all field options
-        const estimatorField = fields.find(f => f.id === ESTIMATOR_FIELD_ID);
-        const stageField = fields.find(f => f.id === STAGE_FIELD_ID);
-        const managerField = fields.find(f => f.id === MANAGER_FIELD_ID);
-        
-        const options = {
-          estimatorOptions: estimatorField?.options || [],
-          stageOptions: stageField?.options || [],
-          managerOptions: managerField?.options || []
-        };
-        
-        setFieldOptions(options);
-        
-        // Set status options (for the filter)
-        if (stageField?.options) {
-          setAllStatuses(stageField.options);
-        }
-        
-        // Pass options up to parent
-        if (onFieldOptionsLoaded) {
-          onFieldOptionsLoaded(options);
-        }
-      }
-    } catch (error) {
-      console.error("Error fetching field options:", error);
-      setError(error);
-    } finally {
-      setLoading(false);
-    }
-  }, [onFieldOptionsLoaded]);
-  
-  // Fetch options on component mount
-  useEffect(() => {
-    fetchAllFieldOptions();
-  }, [fetchAllFieldOptions]);
-  
-  // Update localStorage and trigger changes when filters change
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(selectedStatuses));
-        localStorage.setItem(ESTIMATOR_KEY, JSON.stringify(selectedEstimators));
-        localStorage.setItem(MANAGER_KEY, JSON.stringify(selectedManagers));
-        localStorage.setItem(SORT_KEY, JSON.stringify(sortOption));
+        localStorage.setItem(key, JSON.stringify(value));
       } catch (e) {
         console.error('Error writing to localStorage', e);
       }
     }
-    
-    debouncedFilterChange();
-  }, [selectedStatuses, selectedEstimators, selectedManagers, sortOption, debouncedFilterChange]);
+  };
   
-  // Update search separately
+  // Initialize search and sort from localStorage
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        localStorage.setItem(SEARCH_KEY, searchTerm);
-      } catch (e) {
-        console.error('Error writing search to localStorage', e);
-      }
-    }
-    
-    debouncedFilterChange();
-  }, [searchTerm, debouncedFilterChange]);
-  
-  // Toggle handlers for each filter type
-  const handleStatusToggle = (status) => {
-    setSelectedStatuses(prev => 
-      prev.includes(status) 
-        ? prev.filter(s => s !== status) 
-        : [...prev, status]
-    );
-  };
-  
-  const handleEstimatorToggle = (estimator) => {
-    setSelectedEstimators(prev => 
-      prev.includes(estimator) 
-        ? prev.filter(e => e !== estimator) 
-        : [...prev, estimator]
-    );
-  };
-  
-  const handleManagerToggle = (manager) => {
-    setSelectedManagers(prev => 
-      prev.includes(manager) 
-        ? prev.filter(m => m !== manager) 
-        : [...prev, manager]
-    );
-  };
-  
-  // Sort option handlers
-  const handleSortFieldChange = (field) => {
-    setSortOption(prev => ({ ...prev, field }));
-  };
-  
-  const handleSortOrderToggle = () => {
-    setSortOption(prev => ({ 
-      ...prev, 
-      order: prev.order === 'asc' ? 'desc' : 'asc' 
+    setFilterState(prev => ({
+      ...prev,
+      search: loadFromStorage('jobSearchTerm', ''),
+      sort: loadFromStorage('jobSortOptions', { field: "createdAt", order: "desc" })
     }));
+  }, []);
+  
+  // Fetch field data
+  useEffect(() => {
+    const fetchAllFields = async () => {
+      setLoading(true);
+      
+      try {
+        // Get all needed field IDs
+        const fieldIds = [
+          ...STANDARD_FIELDS.map(f => f.id),
+          // Add custom field if provided and not already included
+          ...(customFieldId && !STANDARD_FIELDS.some(f => f.id === customFieldId) 
+              ? [customFieldId] 
+              : [])
+        ];
+        
+        // Query all fields at once
+        const query = {
+          "organization": {
+            "$": { "id": "22NwWhUAf6VB" },
+            "id": {},
+            "customFields": {
+              "nodes": {
+                "id": {},
+                "name": {},
+                "options": {}
+              },
+              "$": {
+                "where": {
+                  "or": fieldIds.map(id => ["id", "=", id])
+                }
+              }
+            }
+          }
+        };
+        
+        const data = await fetchJobTread(query);
+        
+        if (data?.organization?.customFields?.nodes) {
+          const fields = data.organization.customFields.nodes;
+          setFieldsData(fields);
+          
+          // Initialize filter state for each field
+          fields.forEach(field => {
+            const stateKey = field.name.toLowerCase().replace(/\s+/g, '_');
+            const storageKey = `jobFilter_${field.id}`;
+            
+            // Load values from localStorage
+            let defaultValues = [];
+            if (field.name === 'Stage') {
+              defaultValues = ["Job Started 🔨", "Job Mid Way ⚒️", "Job Complete ✅", 
+                              "Pre-Production 🗓️", "Awaiting Payment ⏲️"];
+            }
+            
+            const values = loadFromStorage(storageKey, defaultValues);
+            
+            // Update filterState for this field
+            setFilterState(prev => ({
+              ...prev,
+              [stateKey]: values
+            }));
+          });
+          
+          // Create options object for backward compatibility
+          const optionsObj = {
+            fieldsData: fields
+          };
+          
+          // Add field-specific options
+          fields.forEach(field => {
+            const key = `${field.id}_options`;
+            optionsObj[key] = field.options || [];
+            
+            // Also add legacy keys for backward compatibility
+            if (field.id === "22NwzQcjYUA4") { // Stage
+              optionsObj.stageOptions = field.options || [];
+            } else if (field.id === "22NwWybgjBTW") { // Estimator
+              optionsObj.estimatorOptions = field.options || [];
+            } else if (field.id === "22P2ZNybRiyG") { // Manager
+              optionsObj.managerOptions = field.options || [];
+            }
+          });
+          
+          // Notify parent
+          if (onFieldOptionsLoaded) {
+            onFieldOptionsLoaded(optionsObj);
+          }
+        }
+      } catch (error) {
+        console.error("Error fetching fields:", error);
+        setError(error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchAllFields();
+  }, [customFieldId, onFieldOptionsLoaded]);
+  
+  // Toggle value in a field
+  const toggleFieldValue = (fieldId, stateKey, value) => {
+    setFilterState(prev => {
+      const currentValues = prev[stateKey] || [];
+      const newValues = currentValues.includes(value)
+        ? currentValues.filter(v => v !== value)
+        : [...currentValues, value];
+      
+      // Save to localStorage
+      saveToStorage(`jobFilter_${fieldId}`, newValues);
+      
+      return {
+        ...prev,
+        [stateKey]: newValues
+      };
+    });
   };
   
-  // Select all / clear handlers
-  const handleSelectAllStatuses = () => setSelectedStatuses([...allStatuses]);
-  const handleClearStatuses = () => setSelectedStatuses([]);
+  // Select all values for a field
+  const selectAllValues = (fieldId, stateKey, options) => {
+    setFilterState(prev => {
+      // Save to localStorage
+      saveToStorage(`jobFilter_${fieldId}`, options);
+      
+      return {
+        ...prev,
+        [stateKey]: [...options]
+      };
+    });
+  };
   
-  const handleSelectAllEstimators = () => setSelectedEstimators([...fieldOptions.estimatorOptions]);
-  const handleClearEstimators = () => setSelectedEstimators([]);
+  // Clear all values for a field
+  const clearValues = (fieldId, stateKey) => {
+    setFilterState(prev => {
+      // Save to localStorage
+      saveToStorage(`jobFilter_${fieldId}`, []);
+      
+      return {
+        ...prev,
+        [stateKey]: []
+      };
+    });
+  };
   
-  const handleSelectAllManagers = () => setSelectedManagers([...fieldOptions.managerOptions]);
-  const handleClearManagers = () => setSelectedManagers([]);
+  // Handle search change
+  const handleSearchChange = (value) => {
+    setFilterState(prev => ({
+      ...prev,
+      search: value
+    }));
+    saveToStorage('jobSearchTerm', value);
+  };
+  
+  // Handle sort field change
+  const handleSortFieldChange = (field) => {
+    setFilterState(prev => {
+      const newSort = { ...prev.sort, field };
+      saveToStorage('jobSortOptions', newSort);
+      return {
+        ...prev,
+        sort: newSort
+      };
+    });
+  };
+  
+  // Toggle sort order
+  const handleSortOrderToggle = () => {
+    setFilterState(prev => {
+      const newSort = { 
+        ...prev.sort,
+        order: prev.sort.order === 'asc' ? 'desc' : 'asc'
+      };
+      saveToStorage('jobSortOptions', newSort);
+      return {
+        ...prev,
+        sort: newSort
+      };
+    });
+  };
+  
+  // Notify parent when filters change
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (onFiltersChange) {
+        // Build the filter object with fieldIds as keys where needed
+        const filtersWithIds = { ...filterState };
+        
+        // Add field IDs as keys for dynamic fields
+        fieldsData.forEach(field => {
+          const stateKey = field.name.toLowerCase().replace(/\s+/g, '_');
+          const values = filterState[stateKey] || [];
+          
+          // Add field ID as a key with its values
+          if (values.length > 0) {
+            filtersWithIds[field.id] = values;
+          }
+        });
+        
+        onFiltersChange(filtersWithIds);
+      }
+    }, 300);
+    
+    return () => clearTimeout(timer);
+  }, [filterState, fieldsData, onFiltersChange]);
+  
+  // Render field filter section
+  const renderFieldFilter = (field) => {
+    const stateKey = field.name.toLowerCase().replace(/\s+/g, '_');
+    const values = filterState[stateKey] || [];
+    const options = field.options || [];
+    
+    return (
+      <FilterSection isMobile={isMobile} key={field.id}>
+        <SectionTitle isMobile={isMobile}>{field.name}</SectionTitle>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+          <Button 
+            size={isMobile ? "small" : "middle"} 
+            onClick={() => selectAllValues(field.id, stateKey, options)}
+          >
+            {isMobile ? 'All' : 'Select All'}
+          </Button>
+          <Button 
+            size={isMobile ? "small" : "middle"} 
+            onClick={() => clearValues(field.id, stateKey)}
+          >
+            {isMobile ? '✕' : 'Clear'}
+          </Button>
+        </div>
+        <div style={{ 
+          maxHeight: isMobile ? '150px' : '200px', 
+          overflowY: 'auto',
+          fontSize: isMobile ? '13px' : '14px'
+        }}>
+          {options.map(option => (
+            <FilterOption key={option} onClick={() => toggleFieldValue(field.id, stateKey, option)}>
+              <Checkbox 
+                checked={values.includes(option)} 
+                style={{ marginRight: '8px' }} 
+              />
+              {option}
+            </FilterOption>
+          ))}
+        </div>
+      </FilterSection>
+    );
+  };
   
   // Get all possible sort fields
   const sortFields = [
     { label: "Created Date", value: "createdAt" },
     { label: "Updated Date", value: "updatedAt" },
     { label: "Job Name", value: "name" },
-    { label: "Stage", value: STAGE_FIELD_ID },
-    { label: "Estimator", value: ESTIMATOR_FIELD_ID },
-    { label: "Manager", value: MANAGER_FIELD_ID },
+    // Add field-specific options
+    ...fieldsData.map(field => ({
+      label: field.name,
+      value: field.id
+    }))
   ];
-
-  // Helper function to render a filter section
-  const renderFilterSection = (title, options, selected, toggleFn, selectAllFn, clearFn) => (
-    <FilterSection isMobile={isMobile}>
-      <SectionTitle isMobile={isMobile}>{title}</SectionTitle>
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-        <Button size={isMobile ? "small" : "middle"} onClick={selectAllFn}>
-          {isMobile ? 'All' : 'Select All'}
-        </Button>
-        <Button size={isMobile ? "small" : "middle"} onClick={clearFn}>
-          {isMobile ? '✕' : 'Clear'}
-        </Button>
-      </div>
-      <div style={{ 
-        maxHeight: isMobile ? '150px' : '200px', 
-        overflowY: 'auto',
-        fontSize: isMobile ? '13px' : '14px'
-      }}>
-        {options.map(option => (
-          <FilterOption key={option} onClick={() => toggleFn(option)}>
-            <Checkbox 
-              checked={selected.includes(option)} 
-              style={{ marginRight: '8px' }} 
-            />
-            {option}
-          </FilterOption>
-        ))}
-      </div>
-    </FilterSection>
-  );
   
   return (
     <FilterContainer isMobile={isMobile}>
@@ -419,43 +409,16 @@ const JobStatusFilter = ({
       <SearchInput
         isMobile={isMobile}
         placeholder={isMobile ? "Search..." : "Search jobs..."}
-        value={searchTerm}
-        onChange={(e) => setSearchTerm(e.target.value)}
+        value={filterState.search}
+        onChange={(e) => handleSearchChange(e.target.value)}
         prefix={<SearchOutlined />}
       />
       <Dropdown 
         overlay={
           <FilterPanel isMobile={isMobile}>
             <FilterRow isMobile={isMobile}>
-              {/* Status filter */}
-              {renderFilterSection(
-                "Status", 
-                allStatuses, 
-                selectedStatuses, 
-                handleStatusToggle,
-                handleSelectAllStatuses,
-                handleClearStatuses
-              )}
-              
-              {/* Estimator filter */}
-              {renderFilterSection(
-                "Estimator", 
-                fieldOptions.estimatorOptions, 
-                selectedEstimators, 
-                handleEstimatorToggle,
-                handleSelectAllEstimators,
-                handleClearEstimators
-              )}
-              
-              {/* Manager filter */}
-              {renderFilterSection(
-                "Manager", 
-                fieldOptions.managerOptions, 
-                selectedManagers, 
-                handleManagerToggle,
-                handleSelectAllManagers,
-                handleClearManagers
-              )}
+              {/* Render all fields */}
+              {fieldsData.map(field => renderFieldFilter(field))}
             </FilterRow>
             
             {/* Sort section */}
@@ -465,7 +428,7 @@ const JobStatusFilter = ({
                 <div style={{ display: 'flex', gap: '8px' }}>
                   <Select 
                     style={{ flex: 1 }}
-                    value={sortOption.field}
+                    value={filterState.sort.field}
                     onChange={handleSortFieldChange}
                     size={isMobile ? "small" : "middle"}
                   >
@@ -477,7 +440,7 @@ const JobStatusFilter = ({
                   </Select>
                   
                   <Button 
-                    icon={sortOption.order === 'asc' ? <ArrowUpOutlined /> : <ArrowDownOutlined />}
+                    icon={filterState.sort.order === 'asc' ? <ArrowUpOutlined /> : <ArrowDownOutlined />}
                     onClick={handleSortOrderToggle}
                     size={isMobile ? "small" : "middle"}
                   />
@@ -498,19 +461,6 @@ const JobStatusFilter = ({
     </FilterContainer>
   );
 };
-
-// Add debounce utility function
-function debounce(func, wait) {
-  let timeout;
-  return function executedFunction(...args) {
-    const later = () => {
-      clearTimeout(timeout);
-      func(...args);
-    };
-    clearTimeout(timeout);
-    timeout = setTimeout(later, wait);
-  };
-}
 
 export default JobStatusFilter;
 

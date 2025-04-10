@@ -130,140 +130,110 @@ export default function JobKanbanPage() {
   const [expandedJobIds, setExpandedJobIds] = useState(new Set());
   const [jobDetails, setJobDetails] = useState({});
   const [filterParams, setFilterParams] = useState({
-    statuses: [],
-    estimators: [],
-    managers: [],
     search: "",
+    sort: {
+      field: "createdAt",
+      order: "desc"
+    },
   });
   const [columnColors, setColumnColors] = useState({});
 
-  // Handle combined filter changes from JobStatusFilter
+  // Handle filters change from JobStatusFilter
   const handleFiltersChange = useCallback((filters) => {
+    console.log("Filters changed:", filters);
     setFilterParams(filters);
   }, []);
-
-  // Fetch field name and options when fieldId changes
-  useEffect(() => {
-    const fetchFieldInfo = async () => {
-      try {
-        const fieldQuery = {
-          "organization": {
-            "$": {
-              "id": "22NwWhUAf6VB"
-            },
-            "id": {},
-            "customFields": {
-              "nodes": {
-                "id": {},
-                "name": {},
-                "options": {}
-              },
-              "$": {
-                "where": {
-                  "or": [
-                    ["id", "=", fieldId],
-                  ]
-                }
-              }
-            }
-          }
-        };
-        
-        const data = await fetchJobTread(fieldQuery);
-
-
-        if (data?.organization?.customFields?.nodes[0]) {
-          // Set field name
-          if (data.organization.customFields.nodes[0].name) {
-            setFieldName(data.organization.customFields.nodes[0].name);
-          }
-          
-          // Set lane options
-          if (data.organization.customFields.nodes[0].options) {
-            const options = data.organization.customFields.nodes[0].options;
-            setStageOptions(options);
-          }
-        }
-      } catch (error) {
-        console.error("Error fetching field info:", error);
-      }
-    };
+  
+  // Handle field options loaded
+  const handleFieldOptionsLoaded = useCallback((options) => {
+    console.log("Field options loaded:", options);
     
-    fetchFieldInfo();
-    // Reset columns when field ID changes
-    setColumns({});
+    // Find our kanban field in the data
+    const kanbanField = options.fieldsData?.find(f => f.id === fieldId);
+    if (kanbanField) {
+      setFieldName(kanbanField.name);
+      setStageOptions(kanbanField.options || []);
+    }
+    
+    // Also set column colors
+    if (kanbanField?.options) {
+      setColumnColors(generateLaneColors(kanbanField.options.length, kanbanField.options));
+    }
   }, [fieldId]);
 
   // Fetch jobs based on filter parameters
   const fetchJobs = useCallback(async () => {
     setLoading(true);
     try {
+      // Collect all fields that need to be included in the query
+      const withObject = {};
+      const whereConditions = [
+        ["closedOn","=",null],
+        ...(filterParams.search ? [["name", "like", `%${filterParams.search}%`]] : []),
+      ];
+      
+      // Always include the field for the kanban board
+      
+      
+      // Add all other fields from filterParams that have IDs as keys
+      Object.keys(filterParams).forEach(key => {
+        // Skip non-field properties
+        if (key === 'search' || key === 'sort') {
+          return;
+        }
+        
+        // If this looks like a field ID
+        if (key.startsWith('22') && Array.isArray(filterParams[key]) && filterParams[key].length > 0) {
+          // Skip the kanban field, it's already included
+          // if (key === fieldId) {
+          //   return;
+          // }
+          
+          // Create alias for this field
+          const alias = `cf_${key.substring(key.length - 5)}`;
+          
+          // Add to the with object
+          withObject[alias] = {
+            "_": "customFieldValues",
+            "$": {
+              "where": [
+                ["customField", "id"],
+                key
+              ]
+            },
+            "values": {
+              "$": {
+                "field": "value"
+              }
+            }
+          };
+          
+          // Add to where conditions
+          whereConditions.push({
+            "or": filterParams[key].map(value => 
+              [[alias, "values"], "=", value]
+            )
+          });
+        }
+      });
+      
       const jobsQuery = {
         "organization": {
           "id": {},
           "jobs": {
+            "nextPage": {},
             $:{
+              "page": "",
               "size": 75,
-              "with": {
-                "cf": {
-                  "_": "customFieldValues",
-                  "$": {
-                    "where": [
-                      ["customField", "id"],
-                      fieldId
-                    ]
-                  },
-                  "values": {
-                    "$": {
-                      "field": "value"
-                    }
-                  }
-                },
-                cf2: {
-                  "_": "customFieldValues",
-                  "$": {
-                    "where": [["customField", "id"], "=", "22NwWybgjBTW"]
-                  },
-                  "values": {
-                    "$": {
-                      "field": "value"
-                    }
-                  }
-                },
-                cf3: {
-                  "_": "customFieldValues",
-                  "$": {
-                    "where": [["customField", "id"], "=", "22P2ZNybRiyG"]
-                  },
-                  "values": {
-                    "$": {
-                      "field": "value"
-                    }
-                  }
+              "sortBy": [
+                {
+                  "field": filterParams.sort?.field || "createdAt",
+                  "order": filterParams.sort?.order || "desc"
                 }
-              },
+              ],
+              "with": withObject,
               "where": {
-                "and": [
-                  ["closedOn","=",null],
-                  ...(filterParams.search ? [["name", "like", `%${filterParams.search}%`]] : []),
-                  
-                  ...(filterParams.statuses.length > 0 ? [{
-                    "or": filterParams.statuses.map(status => 
-                      [["cf", "values"], "=", status]
-                    )
-                  }] : []),
-                  
-                  ...(filterParams.estimators.length > 0 ? [{
-                    "or": filterParams.estimators.map(estimator => 
-                      [["cf2", "values"], "=", estimator]
-                    )
-                  }] : []),
-                  ...(filterParams.managers.length > 0 ? [{
-                    "or": filterParams.managers.map(manager => 
-                      [["cf3", "values"], "=", manager]
-                    )
-                  }] : [])
-                ],
+                "and": whereConditions
               }
             },
             "nodes": {
@@ -542,8 +512,8 @@ export default function JobKanbanPage() {
 
         <JobStatusFilter 
           onFiltersChange={handleFiltersChange}
-          onFieldOptionsLoaded={()=>{}}
-          fieldId={fieldId}
+          onFieldOptionsLoaded={handleFieldOptionsLoaded}
+          customFieldId={fieldId}
         />
 
         <KanbanContainer>
