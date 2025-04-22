@@ -7,10 +7,10 @@ import { fetchJobTread, updateJobTread } from '../../utils/JobTreadApi'
 import JobTile from '../components/JobTile'
 import JobStatusFilter from '../components/JobStatusFilter'
 import { DragDropContext, Droppable, Draggable } from 'react-beautiful-dnd'
-import Link from 'next/link'
 import ThemeSwitch from '../components/ThemeSwitch'
-import { CaretDownOutlined, CaretRightOutlined, ExportOutlined } from '@ant-design/icons'
+import { CaretDownOutlined, CaretRightOutlined, ExportOutlined, HolderOutlined } from '@ant-design/icons'
 import { useSearchParams } from 'next/navigation'
+import { isTwoCNChar } from 'antd/es/button'
 
 const { Content } = Layout
 
@@ -92,7 +92,7 @@ const JobCardActions = styled.div`
 // Add a function to generate lane colors
 const generateLaneColors = (columnCount, columnNames) => {
   const colors = {};
-  
+
   // Set Unassigned to light grey
   if (columnNames.includes("Unassigned")) {
     colors["Unassigned"] = {
@@ -100,22 +100,22 @@ const generateLaneColors = (columnCount, columnNames) => {
       background: 'var(--column-background, #f5f5f5)'
     };
   }
-  
+
   // Calculate colors for the remaining columns
   const remainingColumns = columnNames.filter(name => name !== "Unassigned");
-  
+
   // Generate evenly spaced hues for remaining columns
   remainingColumns.forEach((columnName, index) => {
     // Calculate hue (0-360) based on position and total columns
     const hue = Math.floor(index * (360 / remainingColumns.length));
-    
+
     // Use light pastels (high lightness, low saturation)
     colors[columnName] = {
       header: `hsl(${hue}, 40%, 85%)`,
       background: `hsl(${hue}, 25%, 95%)`
     };
   });
-  
+
   return colors;
 };
 
@@ -129,6 +129,7 @@ export default function JobKanbanPage() {
   const [jobs, setJobs] = useState([]);
   const [expandedJobIds, setExpandedJobIds] = useState(new Set());
   const [jobDetails, setJobDetails] = useState({});
+  const [loadingJobDetails, setLoadingJobDetails] = useState(new Set());
   const [filterParams, setFilterParams] = useState({
     search: "",
     sort: {
@@ -143,18 +144,18 @@ export default function JobKanbanPage() {
     console.log("Filters changed:", filters);
     setFilterParams(filters);
   }, []);
-  
+
   // Handle field options loaded
   const handleFieldOptionsLoaded = useCallback((options) => {
     console.log("Field options loaded:", options);
-    
+
     // Find our kanban field in the data
     const kanbanField = options.fieldsData?.find(f => f.id === fieldId);
     if (kanbanField) {
       setFieldName(kanbanField.name);
       setStageOptions(kanbanField.options || []);
     }
-    
+
     // Also set column colors
     if (kanbanField?.options) {
       setColumnColors(generateLaneColors(kanbanField.options.length, kanbanField.options));
@@ -168,30 +169,30 @@ export default function JobKanbanPage() {
       // Collect all fields that need to be included in the query
       const withObject = {};
       const whereConditions = [
-        ["closedOn","=",null],
+        ["closedOn", "=", null],
         ...(filterParams.search ? [["name", "like", `%${filterParams.search}%`]] : []),
       ];
-      
+
       // Always include the field for the kanban board
-      
-      
+
+
       // Add all other fields from filterParams that have IDs as keys
       Object.keys(filterParams).forEach(key => {
         // Skip non-field properties
         if (key === 'search' || key === 'sort') {
           return;
         }
-        
+
         // If this looks like a field ID
         if (key.startsWith('22') && Array.isArray(filterParams[key]) && filterParams[key].length > 0) {
           // Skip the kanban field, it's already included
           // if (key === fieldId) {
           //   return;
           // }
-          
+
           // Create alias for this field
           const alias = `cf_${key.substring(key.length - 5)}`;
-          
+
           // Add to the with object
           withObject[alias] = {
             "_": "customFieldValues",
@@ -207,16 +208,16 @@ export default function JobKanbanPage() {
               }
             }
           };
-          
+
           // Add to where conditions
           whereConditions.push({
-            "or": filterParams[key].map(value => 
+            "or": filterParams[key].map(value =>
               [[alias, "values"], "=", value]
             )
           });
         }
       });
-      
+
       const jobsQuery = {
         "organization": {
           "id": {},
@@ -224,7 +225,7 @@ export default function JobKanbanPage() {
             "nextPage": {},
             $:{
               "page": "",
-              "size": 75,
+              "size": 50,
               "sortBy": [
                 {
                   "field": filterParams.sort?.field || "createdAt",
@@ -255,409 +256,471 @@ export default function JobKanbanPage() {
                     "name": {}
                   }
                 }
+              },
+              "tasks": {
+                "$": {
+                  "where": {
+                    "and": [
+                      [
+                        "isToDo",
+                        "=",
+                        "true"
+                      ],
+                      [
+                        "completed",
+                        "=",
+                        0
+                      ]
+                    ]
+                  },
+                  "size": "3"
+                },
+              
+              "nodes": {
+                "id": {},
+                "name": {},
+                "progress": {},
+                "isToDo": {},
               }
             }
           }
         }
-      };
-
-      const data = await fetchJobTread(jobsQuery);
-      
-      if (data?.organization?.jobs?.nodes) {
-        setJobs(data.organization.jobs.nodes);
       }
-    } catch (error) {
-      console.error("Error fetching jobs:", error);
-      message.error("Failed to load jobs");
-    } finally {
-      setLoading(false);
-    }
-  }, [filterParams, fieldId]);
+    };
 
-  // Function to fetch job details for expanded view
-  const fetchJobDetails = useCallback(async (jobId) => {
-    if (jobDetails[jobId]) return; // Already fetched
-    
-    try {
-      const detailsQuery = {
-        "job": {
-          "$": {
-            "id": jobId
-          },
-          "id": {},
-          "createdAt": {},
-          "comments": {
-            "nodes": {
-              "id": {},
-              "message": {},
-              "name": {},
-              "createdAt": {},
-              "createdByUser": {
-                "name": {}
-              }
-            }
-          },
-          "dailyLogs": {
-            "nodes": {
-              "id": {},
-              "notes": {},
-              "date": {},
-              "user": {
-                "name": {}
-              }
-            }
-          },
-          "tasks": {
-            "nodes": {
-              "id": {},
-              "description": {},
-              "completed": {},
-              "progress": {},
-              "name": {},
-              "endDate": {},
-              "startDate": {},
-              "createdAt": {},
-            }
-          },
-          "documents": {
-            "nodes": {
-              "id": {},
-              "price": {},
-              "signedAt": {},
-              "issueDate": {},
-              "amountPaid": {},
-              "balance": {},
-              "status": {},
-              "fullName": {},
-              "type": {}
+    const data = await fetchJobTread(jobsQuery);
+
+    if (data?.organization?.jobs?.nodes) {
+      setJobs(data.organization.jobs.nodes);
+    }
+  } catch (error) {
+    console.error("Error fetching jobs:", error);
+    message.error("Failed to load jobs");
+  } finally {
+    setLoading(false);
+  }
+}, [filterParams, fieldId]);
+
+// Function to fetch job details for expanded view
+const fetchJobDetails = useCallback(async (jobId) => {
+  if (jobDetails[jobId] || loadingJobDetails.has(jobId)) return;
+
+  setLoadingJobDetails(prev => new Set(prev).add(jobId));
+
+  try {
+    const detailsQuery = {
+      "job": {
+        "$": {
+          "id": jobId
+        },
+        "id": {},
+        "createdAt": {},
+        "comments": {
+          "nodes": {
+            "id": {},
+            "message": {},
+            "name": {},
+            "createdAt": {},
+            "createdByUser": {
+              "name": {}
             }
           }
+        },
+        "dailyLogs": {
+          "nodes": {
+            "id": {},
+            "notes": {},
+            "date": {},
+            "user": {
+              "name": {}
+            }
+          }
+        },
+        "tasks": {
+          "nodes": {
+            "id": {},
+            "description": {},
+            "completed": {},
+            "progress": {},
+            "name": {},
+            "endDate": {},
+            "startDate": {},
+            "createdAt": {},
+          }
+        },
+        "documents": {
+          "nodes": {
+            "id": {},
+            "price": {},
+            "signedAt": {},
+            "issueDate": {},
+            "amountPaid": {},
+            "balance": {},
+            "status": {},
+            "fullName": {},
+            "type": {}
+          }
         }
-      };
-      
-      const response = await fetchJobTread(detailsQuery);
-      if (response.job) {
-        setJobDetails(prev => ({
-          ...prev,
-          [jobId]: response.job
-        }));
       }
-    } catch (error) {
-      console.error("Error loading job details:", error);
-      message.error("Failed to load job details");
-    }
-  }, [jobDetails]);
+    };
 
-  // Toggle expanded job
-  const toggleExpandJob = useCallback((jobId) => {
+    const response = await fetchJobTread(detailsQuery);
+    if (response.job) {
+      setJobDetails(prev => ({
+        ...prev,
+        [jobId]: response.job
+      }));
+    } else {
+      console.warn("Job details not found or invalid response for ID:", jobId);
+      message.warn("Could not load details for this job.");
+      setExpandedJobIds(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(jobId);
+        return newSet;
+      });
+    }
+  } catch (error) {
+    console.error("Error loading job details:", error);
+    message.error("Failed to load job details");
     setExpandedJobIds(prev => {
       const newSet = new Set(prev);
-      if (newSet.has(jobId)) {
-        newSet.delete(jobId);
-      } else {
-        newSet.add(jobId);
-        // Fetch details if expanding and not already loaded
-        if (!jobDetails[jobId]) {
-          fetchJobDetails(jobId);
-        }
-      }
+      newSet.delete(jobId);
       return newSet;
     });
-  }, [fetchJobDetails, jobDetails]);
-
-  // Organize jobs into columns by stage
-  useEffect(() => {
-    if (stageOptions.length === 0 || jobs.length === 0) return;
-
-    const newColumns = {};
-    let unassignedJobs = [];
-    
-    // Check if filter has selections for this fieldId
-    const hasFieldSelections = filterParams[fieldId] && filterParams[fieldId].length > 0;
-    
-    // Use selected options if available, otherwise use all stageOptions
-    const displayOptions = hasFieldSelections ? filterParams[fieldId] : stageOptions;
-    
-    // Initialize columns with empty job arrays
-    displayOptions.forEach(stage => {
-      newColumns[stage] = [];
+  } finally {
+    setLoadingJobDetails(prev => {
+      const newSet = new Set(prev);
+      newSet.delete(jobId);
+      return newSet;
     });
-    
-    // Add jobs to appropriate columns
-    jobs.forEach(job => {
-      const stageCfv = job.customFieldValues.nodes.find(
-        node => node.customField.id === fieldId
-      );
-      
-      if (!stageCfv || !stageCfv.value) {
-        // Job has no value for this field - add to unassigned
-        unassignedJobs.push(job);
-      } else {
-        const stage = stageCfv.value;
-        if (newColumns[stage]) {
-          newColumns[stage].push(job);
-        } else if (!hasFieldSelections && stage !== 'Not Set') {
-          // For any stage not in our options (but only if we're showing all stages)
-          // create a new column
-          newColumns[stage] = [job];
-        }
-      }
-    });
-    
-    // Add Unassigned column if there are unassigned jobs
-    if (unassignedJobs.length > 0) {
-      // Reorder columns to have Unassigned first
-      const orderedColumns = { "Unassigned": unassignedJobs };
-      // Add all other columns
-      Object.entries(newColumns).forEach(([key, value]) => {
-        orderedColumns[key] = value;
-      });
-      setColumns(orderedColumns);
+  }
+}, [jobDetails, loadingJobDetails]);
+
+// Toggle expanded job
+const toggleExpandJob = useCallback((jobId) => {
+  setExpandedJobIds(prev => {
+    const newSet = new Set(prev);
+    const isCurrentlyExpanded = newSet.has(jobId);
+
+    if (isCurrentlyExpanded) {
+      newSet.delete(jobId);
     } else {
-      setColumns(newColumns);
+      newSet.add(jobId);
+      if (!jobDetails[jobId] && !loadingJobDetails.has(jobId)) {
+        fetchJobDetails(jobId);
+      }
     }
-  }, [stageOptions, jobs, fieldId, filterParams]);
+    return newSet;
+  });
+}, [fetchJobDetails, jobDetails, loadingJobDetails]);
 
-  // Fetch jobs when filters change
-  useEffect(() => {
-    if (stageOptions.length > 0) {
-      fetchJobs();
+// Organize jobs into columns by stage
+useEffect(() => {
+  if (stageOptions.length === 0 || jobs.length === 0) return;
+
+  const newColumns = {};
+  let unassignedJobs = [];
+
+  // Check if filter has selections for this fieldId
+  const hasFieldSelections = filterParams[fieldId] && filterParams[fieldId].length > 0;
+
+  // Use selected options if available, otherwise use all stageOptions
+  const displayOptions = hasFieldSelections ? filterParams[fieldId] : stageOptions;
+
+  // Initialize columns with empty job arrays
+  displayOptions.forEach(stage => {
+    newColumns[stage] = [];
+  });
+
+  // Add jobs to appropriate columns
+  jobs.forEach(job => {
+    const stageCfv = job.customFieldValues.nodes.find(
+      node => node.customField.id === fieldId
+    );
+
+    if (!stageCfv || !stageCfv.value) {
+      // Job has no value for this field - add to unassigned
+      unassignedJobs.push(job);
+    } else {
+      const stage = stageCfv.value;
+      if (newColumns[stage]) {
+        newColumns[stage].push(job);
+      } else if (!hasFieldSelections && stage !== 'Not Set') {
+        // For any stage not in our options (but only if we're showing all stages)
+        // create a new column
+        newColumns[stage] = [job];
+      }
     }
-  }, [fetchJobs, stageOptions]);
+  });
 
-  // Update job's stage in JobTread API
-  const updateJobStage = async (jobId, stage) => {
-    try {
-      const query = {
-        "updateJob": {
-          "$": {
-            "id": jobId,
-            "customFieldValues": {
-              // If stage is "Unassigned", set to null to clear the value
-              [fieldId]: stage === "Unassigned" ? null : stage
-            }
+  // Add Unassigned column if there are unassigned jobs
+  if (unassignedJobs.length > 0) {
+    // Reorder columns to have Unassigned first
+    const orderedColumns = { "Unassigned": unassignedJobs };
+    // Add all other columns
+    Object.entries(newColumns).forEach(([key, value]) => {
+      orderedColumns[key] = value;
+    });
+    setColumns(orderedColumns);
+  } else {
+    setColumns(newColumns);
+  }
+}, [stageOptions, jobs, fieldId, filterParams]);
+
+// Fetch jobs when filters change
+useEffect(() => {
+  if (stageOptions.length > 0) {
+    fetchJobs();
+  }
+}, [fetchJobs, stageOptions]);
+
+// Update job's stage in JobTread API
+const updateJobStage = async (jobId, stage) => {
+  try {
+    const query = {
+      "updateJob": {
+        "$": {
+          "id": jobId,
+          "customFieldValues": {
+            // If stage is "Unassigned", set to null to clear the value
+            [fieldId]: stage === "Unassigned" ? null : stage
           }
         }
-      };
-
-      const result = await updateJobTread(query);
-      return result?.updateJob?.job;
-    } catch (error) {
-      console.error("Error updating job stage:", error);
-      throw error;
-    }
-  };
-
-  // Handle drag end event
-  const onDragEnd = async (result) => {
-    const { destination, source, draggableId } = result;
-
-    // If dropped outside any droppable area
-    if (!destination) return;
-
-    // If dropped in the same position
-    if (
-      destination.droppableId === source.droppableId &&
-      destination.index === source.index
-    ) return;
-
-    // Don't allow drops outside of defined columns
-    if (!columns[destination.droppableId]) return;
-    
-    try {
-      // Optimistic UI update
-      const sourceColumn = columns[source.droppableId];
-      const destColumn = columns[destination.droppableId];
-      const job = sourceColumn.find(job => job.id === draggableId);
-      
-      const newSourceColumn = [...sourceColumn];
-      newSourceColumn.splice(source.index, 1);
-      
-      const newDestColumn = [...destColumn];
-      newDestColumn.splice(destination.index, 0, job);
-      
-      setColumns({
-        ...columns,
-        [source.droppableId]: newSourceColumn,
-        [destination.droppableId]: newDestColumn
-      });
-
-      // Update job stage in API
-      const updatedJob = await updateJobStage(draggableId, destination.droppableId);
-      
-      // If API update successful, update job in state
-      if (updatedJob) {
-        setJobs(prevJobs => 
-          prevJobs.map(prevJob => 
-            prevJob.id === draggableId ? updatedJob : prevJob
-          )
-        );
-        message.success(`Job moved to ${destination.droppableId}`);
       }
-    } catch (error) {
-      // On error, revert to previous state
-      message.error("Failed to update job stage");
-      fetchJobs(); // Reload jobs to get correct state
+    };
+
+    const result = await updateJobTread(query);
+    return result?.updateJob?.job;
+  } catch (error) {
+    console.error("Error updating job stage:", error);
+    throw error;
+  }
+};
+
+// Handle drag end event
+const onDragEnd = async (result) => {
+  const { destination, source, draggableId } = result;
+
+  // If dropped outside any droppable area
+  if (!destination) return;
+
+  // If dropped in the same position
+  if (
+    destination.droppableId === source.droppableId &&
+    destination.index === source.index
+  ) return;
+
+  // Don't allow drops outside of defined columns
+  if (!columns[destination.droppableId]) return;
+
+  try {
+    // Optimistic UI update
+    const sourceColumn = columns[source.droppableId];
+    const destColumn = columns[destination.droppableId];
+    const job = sourceColumn.find(job => job.id === draggableId);
+
+    const newSourceColumn = [...sourceColumn];
+    newSourceColumn.splice(source.index, 1);
+
+    const newDestColumn = [...destColumn];
+    newDestColumn.splice(destination.index, 0, job);
+
+    setColumns({
+      ...columns,
+      [source.droppableId]: newSourceColumn,
+      [destination.droppableId]: newDestColumn
+    });
+
+    // Update job stage in API
+    const updatedJob = await updateJobStage(draggableId, destination.droppableId);
+
+    // If API update successful, update job in state
+    if (updatedJob) {
+      setJobs(prevJobs =>
+        prevJobs.map(prevJob =>
+          prevJob.id === draggableId ? updatedJob : prevJob
+        )
+      );
+      message.success(`Job moved to ${destination.droppableId}`);
     }
-  };
+  } catch (error) {
+    // On error, revert to previous state
+    message.error("Failed to update job stage");
+    fetchJobs(); // Reload jobs to get correct state
+  }
+};
 
-  // Update column colors when columns change
-  useEffect(() => {
-    if (Object.keys(columns).length > 0) {
-      setColumnColors(generateLaneColors(Object.keys(columns).length, Object.keys(columns)));
-    }
-  }, [columns]);
+// Update column colors when columns change
+useEffect(() => {
+  if (Object.keys(columns).length > 0) {
+    setColumnColors(generateLaneColors(Object.keys(columns).length, Object.keys(columns)));
+  }
+}, [columns]);
 
-  return (
-    <Layout style={{ minHeight: '100vh', background: 'var(--background)' }}>
-      <ThemeSwitch />
-      <Content style={{ padding: '20px', paddingTop: '10px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-          <h1 className="ml-5" style={{ color: 'var(--foreground)' }}>{fieldName} Kanban Board</h1>
-          
-        </div>
+return (
+  <Layout style={{ minHeight: '100vh', background: 'var(--background)' }}>
+    <ThemeSwitch />
+    <Content style={{ padding: '20px', paddingTop: '10px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+        <h1 className="ml-5" style={{ color: 'var(--foreground)' }}>{fieldName} Kanban Board</h1>
 
-        <JobStatusFilter 
-          onFiltersChange={handleFiltersChange}
-          onFieldOptionsLoaded={handleFieldOptionsLoaded}
-          customFieldId={fieldId}
-        />
+      </div>
 
-        <KanbanContainer>
-          {loading ? (
-            <div style={{ display: 'flex', justifyContent: 'center', padding: '50px' }}>
-              <Spin size="large" />
-            </div>
-          ) : (
-            <DragDropContext onDragEnd={onDragEnd}>
-              <BoardContainer>
-                {Object.keys(columns).map(columnId => {
-                  const columnColor = columnColors[columnId] || {
-                    header: 'var(--column-header, #e0e0e0)',
-                    background: 'var(--column-background, #f5f5f5)'
-                  };
-                  
-                  return (
-                    <Column key={columnId} style={{ background: columnColor.background }}>
-                      <ColumnHeader style={{ background: columnColor.header }}>
-                        {columnId}
-                        <span>{columns[columnId].length}</span>
-                      </ColumnHeader>
-                      <Droppable droppableId={columnId}>
-                        {(provided) => (
-                          <ColumnContent
-                            ref={provided.innerRef}
-                            {...provided.droppableProps}
-                          >
-                            {columns[columnId].map((job, index) => {
-                              const isExpanded = expandedJobIds.has(job.id);
-                              const hasDetails = !!jobDetails[job.id];
-                              
-                              // Get job info for display in the collapsed view
-                              const estimator = job.customFieldValues.nodes.find(node => 
-                                node.customField.name === "Estimator"
-                              )?.value || 'Not Assigned';
+      <JobStatusFilter
+        onFiltersChange={handleFiltersChange}
+        onFieldOptionsLoaded={handleFieldOptionsLoaded}
+        customFieldId={fieldId}
+      />
 
-                              const stage = job.customFieldValues.nodes.find(node => 
-                                node.customField.name === "Stage"
-                              )?.value || 'Not Assigned';
-                              
-                              const productionManager = job.customFieldValues.nodes.find(node => 
-                                node.customField.name === "Production Manager"
-                              )?.value || 'Not Assigned';
-                              
-                              const address = job.location ? 
-                                `${job.location.city}, ${job.location.state}` : 
-                                'No address';
-                              
-                              return (
-                                <Draggable
-                                  key={job.id}
-                                  draggableId={job.id}
-                                  index={index}
-                                >
-                                  {(provided, snapshot) => (
-                                    <JobCard
-                                      ref={provided.innerRef}
-                                      {...provided.draggableProps}
-                                      {...provided.dragHandleProps}
-                                      style={{
-                                        ...provided.draggableProps.style,
-                                        opacity: snapshot.isDragging ? 0.8 : 1
+      <KanbanContainer>
+        {loading ? (
+          <div style={{ display: 'flex', justifyContent: 'center', padding: '50px' }}>
+            <Spin size="large" />
+          </div>
+        ) : (
+          <DragDropContext onDragEnd={onDragEnd}>
+            <BoardContainer>
+              {Object.keys(columns).map(columnId => {
+                const columnColor = columnColors[columnId] || {
+                  header: 'var(--column-header, #e0e0e0)',
+                  background: 'var(--column-background, #f5f5f5)'
+                };
+
+                return (
+                  <Column key={columnId} style={{ background: columnColor.background }}>
+                    <ColumnHeader style={{ background: columnColor.header }}>
+                      {columnId}
+                      <span>{columns[columnId].length}</span>
+                    </ColumnHeader>
+                    <Droppable droppableId={columnId}>
+                      {(provided) => (
+                        <ColumnContent
+                          ref={provided.innerRef}
+                          {...provided.droppableProps}
+                        >
+                          {columns[columnId].map((job, index) => {
+                            const isExpanded = expandedJobIds.has(job.id);
+                            const hasDetails = !!jobDetails[job.id];
+
+                            // Get job info for display in the collapsed view
+                            const estimator = job.customFieldValues.nodes.find(node =>
+                              node.customField.name === "Estimator"
+                            )?.value || 'Not Assigned';
+
+                            const stage = job.customFieldValues.nodes.find(node =>
+                              node.customField.name === "Stage"
+                            )?.value || 'Not Assigned';
+
+                            const productionManager = job.customFieldValues.nodes.find(node =>
+                              node.customField.name === "Production Manager"
+                            )?.value || 'Not Assigned';
+
+                            const address = job.location ?
+                              `${job.location.city}, ${job.location.state}` :
+                              'No address';
+
+                            return (
+                              <Draggable
+                                key={job.id}
+                                draggableId={job.id}
+                                index={index}
+                              >
+                                {(provided, snapshot) => (
+                                  <JobCard
+                                    ref={provided.innerRef}
+                                    {...provided.draggableProps}
+                                    style={{
+                                      ...provided.draggableProps.style,
+                                      opacity: snapshot.isDragging ? 0.8 : 1
+                                    }}
+                                  >
+                                    <JobCardHeader
+                                      isExpanded={isExpanded}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        toggleExpandJob(job.id);
                                       }}
                                     >
-                                      <JobCardHeader 
-                                        isExpanded={isExpanded}
-                                        onClick={(e) => {
-                                          e.stopPropagation(); 
-                                          toggleExpandJob(job.id);
-                                        }}
-                                      >
-                                        <JobCardTitle>{job.name}</JobCardTitle>
-                                        <JobCardActions>
-                                          <Button 
-                                            type="text" 
-                                            size="small"
-                                            icon={<ExportOutlined />}
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              window.open(`https://app.jobtread.com/jobs/${job.id}`, '_blank');
-                                            }}
-                                          />
-                                          <div 
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                            }}
-                                          >
-                                            {isExpanded ? 
-                                              <CaretDownOutlined /> : 
-                                              <CaretRightOutlined />
-                                            }
-                                          </div>
-                                        </JobCardActions>
-                                      </JobCardHeader>
-                                      
-                                      <div style={{ marginBottom: isExpanded ? 12 : 0 }}>
-                                        <div style={{ fontSize: '12px', color: 'rgba(0,0,0,0.65)' }}>
-                                          {stage} | {address}
+                                      <JobCardTitle>{job.name}</JobCardTitle>
+                                      <JobCardActions>
+                                        <div
+                                          {...provided.dragHandleProps}
+                                          style={{ cursor: 'grab', display: 'flex', alignItems: 'center', padding: '0 4px' }}
+                                          onClick={(e) => e.stopPropagation()}
+                                        >
+                                          <HolderOutlined />
                                         </div>
-                                      </div>
-                                      
-                                      <JobCardContent isExpanded={isExpanded}>
-                                        {isExpanded && !hasDetails && (
-                                          <div style={{ padding: '10px 0', textAlign: 'center' }}>
-                                            <Spin size="small" /> Loading details...
-                                          </div>
-                                        )}
-                                        
-                                        {isExpanded && hasDetails && (
-                                          <JobTile 
-                                            job={{
-                                              ...job,
-                                              ...jobDetails[job.id]
-                                            }} 
-                                            inlineStyle={true}
-                                            onClick={(e) => e.stopPropagation()}
-                                          />
-                                        )}
-                                      </JobCardContent>
-                                    </JobCard>
-                                  )}
-                                </Draggable>
-                              );
-                            })}
-                            {provided.placeholder}
-                          </ColumnContent>
-                        )}
-                      </Droppable>
-                    </Column>
-                  );
-                })}
-              </BoardContainer>
-            </DragDropContext>
-          )}
-        </KanbanContainer>
-      </Content>
-    </Layout>
-  )
+                                        <Button
+                                          type="text"
+                                          size="small"
+                                          icon={<ExportOutlined />}
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            window.open(`https://app.jobtread.com/jobs/${job.id}`, '_blank');
+                                          }}
+                                        />
+                                        <div
+                                          style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', padding: '0 4px' }}
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            toggleExpandJob(job.id);
+                                          }}
+                                        >
+                                          {loadingJobDetails.has(job.id) ? (
+                                            <Spin size="small" />
+                                          ) : isExpanded ? (
+                                            <CaretDownOutlined />
+                                          ) : (
+                                            <CaretRightOutlined />
+                                          )}
+                                        </div>
+                                      </JobCardActions>
+                                    </JobCardHeader>
+
+                                    <div style={{ marginBottom: isExpanded ? 12 : 0, fontSize: '12px', color: 'var(--text-secondary)' }}>
+                                      {stage} | {address}
+                                    </div>
+
+                                    <JobCardContent isExpanded={isExpanded}>
+                                      {isExpanded && loadingJobDetails.has(job.id) && (
+                                        <div style={{ padding: '10px 0', textAlign: 'center' }}>
+                                          <Spin size="small" /> Loading details...
+                                        </div>
+                                      )}
+
+                                      {isExpanded && !loadingJobDetails.has(job.id) && hasDetails && (
+                                        <JobTile
+                                          job={{
+                                            ...job,
+                                            ...jobDetails[job.id]
+                                          }}
+                                          inlineStyle={true}
+                                        />
+                                      )}
+
+                                      {isExpanded && !loadingJobDetails.has(job.id) && !hasDetails && (
+                                        <div style={{ padding: '10px 0', textAlign: 'center', color: 'var(--text-secondary)' }}>
+                                          Could not load details.
+                                        </div>
+                                      )}
+                                    </JobCardContent>
+                                  </JobCard>
+                                )}
+                              </Draggable>
+                            );
+                          })}
+                          {provided.placeholder}
+                        </ColumnContent>
+                      )}
+                    </Droppable>
+                  </Column>
+                );
+              })}
+            </BoardContainer>
+          </DragDropContext>
+        )}
+      </KanbanContainer>
+    </Content>
+  </Layout>
+)
 } 
