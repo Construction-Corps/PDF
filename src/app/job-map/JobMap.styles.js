@@ -10,7 +10,7 @@ export const TopBar = styled.div`
   background: white;
   padding: 12px 24px;
   box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-  z-index: 1000;
+  z-index: 500;
   display: flex;
   align-items: center;
 `;

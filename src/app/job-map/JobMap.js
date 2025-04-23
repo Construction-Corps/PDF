@@ -68,13 +68,12 @@ const JobMap = () => {
     const [bounds, setBounds] = useState(null);
     
     const estimatorColors = {
-        'Jake': '#FF4444',
-        'Jonathan': '#33B679',
-        'Dan': '#7986CB',
-        'Jim': '#FFB300',
-        'Russ': '#8E24AA',
-        'Matt': '#0288D1',
-        'Pablo': '#26A69A',
+        // 'Jake': '#FF4444',
+        'Jonathan Duarte': '#33B679',
+        'Billie Owen': '#7986CB',
+        // 'Bill D': '#FFB300',
+        // 'Russ': '#8E24AA',
+        // 'Pablo': '#26A69A',
         'Other': '#757575'
     };
     
