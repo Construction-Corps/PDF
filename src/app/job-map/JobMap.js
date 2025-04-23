@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { Switch } from 'antd';
 import { GoogleMap, Marker, InfoWindow, OverlayView } from '@react-google-maps/api';
 import JobTile from '../components/JobTile';
@@ -103,6 +103,12 @@ const JobMap = () => {
             }
         ]
     };
+    
+    // Memoize the map options object to prevent unnecessary re-renders/resets
+    const mapInstanceOptions = useMemo(() => ({
+        ...mapOptions,
+        scrollwheel: true,
+    }), []); // Dependencies are empty as mapOptions is stable
     
     const fetchJobs = async () => {
         if (!isClient || !map || selectedStatuses.length === 0) return;
@@ -329,10 +335,7 @@ const JobMap = () => {
                     </Watermark>
                     <GoogleMap
                         mapContainerStyle={{ width: '100%', height: '100%' }}
-                        options={{
-                            ...mapOptions,
-                            scrollwheel: true
-                        }}
+                        options={mapInstanceOptions}
                         onLoad={setMap}
                     >
                         {Array.from(markers.values()).map(({ position, estimator, job }) => (
