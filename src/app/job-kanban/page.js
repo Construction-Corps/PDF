@@ -567,32 +567,70 @@ const handleAddTask = useCallback(async (jobId, taskName) => {
     return;
   }
 
-  console.log(`Adding task "${taskName}" to job ${jobId}`);
+  const trimmedTaskName = taskName.trim();
+  console.log(`Adding task "${trimmedTaskName}" to job ${jobId}`);
   message.loading({ content: 'Adding task...', key: `add-task-${jobId}` });
 
   try {
     const mutation = {
       "createTask": {
         "$": {
-          "name": taskName.trim(),
+          "name": trimmedTaskName,
           "isToDo": true,
           "targetType": "job",
           "targetId": jobId
         },
-        "createdTask": {
+        "createdTask": { // Ensure we get necessary fields back
            "id": {},
            "name": {},
-           "isToDo": {}
+           "isToDo": {},
+           "progress": {} // Add progress here
         }
       }
     };
 
     const result = await updateJobTread(mutation);
+    const createdTaskData = result?.createTask?.createdTask;
 
-    if (result?.createTask?.createdTask) {
+    if (createdTaskData) {
       message.success({ content: 'Task added successfully!', key: `add-task-${jobId}`, duration: 2 });
-      setNewTaskInputs(prev => ({ ...prev, [jobId]: '' }));
-      fetchJobs();
+      setNewTaskInputs(prev => ({ ...prev, [jobId]: '' })); // Clear the input
+
+      // --- START: Replace fetchJobs() with state update ---
+      setJobs(prevJobs => {
+        return prevJobs.map(job => {
+          // Find the job that the task was added to
+          if (job.id === jobId) {
+            // Create a new task object from the response
+            // Ensure default values if not returned (though they should be)
+            const newTask = {
+              id: createdTaskData.id,
+              name: createdTaskData.name || trimmedTaskName,
+              isToDo: createdTaskData.isToDo !== undefined ? createdTaskData.isToDo : true,
+              progress: createdTaskData.progress !== undefined ? createdTaskData.progress : 0,
+            };
+
+            // Prepend the new task to the existing tasks list
+            // Make sure nodes is an array, initialize if it doesn't exist
+            const existingNodes = Array.isArray(job.tasks?.nodes) ? job.tasks.nodes : [];
+            const updatedTasksNodes = [newTask, ...existingNodes];
+
+            // Return the updated job object
+            return {
+              ...job,
+              tasks: {
+                // Preserve other potential properties of 'tasks' if any
+                ...job.tasks,
+                nodes: updatedTasksNodes
+              }
+            };
+          }
+          // Return other jobs unchanged
+          return job;
+        });
+      });
+      // --- END: Replace fetchJobs() with state update ---
+
     } else {
       console.error("Failed to add task, unexpected response:", result);
       message.error({ content: 'Failed to add task. Unexpected response.', key: `add-task-${jobId}`, duration: 3 });
@@ -601,11 +639,11 @@ const handleAddTask = useCallback(async (jobId, taskName) => {
     console.error("Error adding task:", error);
     message.error({ content: `Error adding task: ${error.message}`, key: `add-task-${jobId}`, duration: 3 });
   }
-}, [fetchJobs]);
+}, []); // Removed fetchJobs dependency
 
 // Generic function to handle updating an existing task (name or completion)
-const handleUpdateTask = useCallback(async (taskId, updatePayload, originalName = null) => {
-  const updateKey = Object.keys(updatePayload)[0]; // 'name' or 'completed'
+const handleUpdateTask = useCallback(async (jobId, taskId, updatePayload, originalName = null) => {
+  const updateKey = Object.keys(updatePayload)[0]; // 'name' or 'progress'
   const newValue = updatePayload[updateKey];
 
   // Trim name if updating name
@@ -624,8 +662,8 @@ const handleUpdateTask = useCallback(async (taskId, updatePayload, originalName 
     updatePayload.name = trimmedValue; // Use trimmed value
   }
 
-  const actionText = updateKey === 'name' ? 'Updating task name...' : (newValue ? 'Marking task complete...' : 'Marking task incomplete...');
-  console.log(`Updating task ${taskId}:`, updatePayload);
+  const actionText = updateKey === 'name' ? 'Updating task name...' : (newValue === 1 ? 'Marking task complete...' : 'Marking task incomplete...');
+  console.log(`Updating task ${taskId} on job ${jobId}:`, updatePayload); // Log jobId too
   message.loading({ content: actionText, key: `update-task-${taskId}` });
 
   try {
@@ -633,44 +671,70 @@ const handleUpdateTask = useCallback(async (taskId, updatePayload, originalName 
       "updateTask": {
         "$": {
           "id": taskId,
-          ...updatePayload // Spread the payload ({name: '...'} or {progress: true/false})
+          ...updatePayload // Spread the payload ({name: '...'} or {progress: 0/1})
         },
-        
-      },
-      "task": { // Request updated fields back
+      
+      // Request updated fields back to ensure UI consistency
+      "task": {
         "$": {"id": taskId},
            "id": {},
            "name": {},
-           "progress": {}
+           "progress": {},
+           "completed": {}
         }
+      }
     };
 
     const result = await updateJobTread(mutation);
 
-    if (result?.task) {
+    if (result?.updateTask.task) {
       message.success({ content: 'Task updated!', key: `update-task-${taskId}`, duration: 2 });
+
       // Reset editing state if a name was successfully updated
       if (updateKey === 'name') {
          setEditingTask({ id: null, value: '' });
       }
-      fetchJobs(); // Refresh the job list to show changes
+
+      // --- START: Replace fetchJobs() with state update ---
+      setJobs(prevJobs => {
+        return prevJobs.map(job => {
+          // Find the job that was updated
+          if (job.id === jobId) {
+            // Map over the tasks of that job
+            const updatedTasks = job.tasks.nodes.map(task => {
+              // Find the specific task that was updated
+              if (task.id === taskId) {
+                // Return the updated task data from the API response
+                // merging it with the existing task data just in case
+                return { ...task, ...result.updateTask.task };
+              }
+              // Return other tasks unchanged
+              return task;
+            });
+            // Return the updated job object with the modified tasks list
+            return { ...job, tasks: { ...job.tasks, nodes: updatedTasks } };
+          }
+          // Return other jobs unchanged
+          return job;
+        });
+      });
+      // --- END: Replace fetchJobs() with state update ---
+
     } else {
       console.error("Failed to update task, unexpected response:", result);
       message.error({ content: 'Failed to update task.', key: `update-task-${taskId}`, duration: 3 });
-      // Reset editing state on failure too if it was a name update
-       if (updateKey === 'name') {
+      if (updateKey === 'name') {
          setEditingTask({ id: null, value: '' });
        }
     }
   } catch (error) {
     console.error("Error updating task:", error);
     message.error({ content: `Error updating task: ${error.message}`, key: `update-task-${taskId}`, duration: 3 });
-     // Reset editing state on error too if it was a name update
      if (updateKey === 'name') {
        setEditingTask({ id: null, value: '' });
      }
   }
-}, [fetchJobs]);
+}, []); // Removed fetchJobs from dependency array
 
 // Handler to update the specific input field state for new tasks
 const handleNewTaskInputChange = (jobId, value) => {
@@ -821,10 +885,11 @@ return (
                                               {job.tasks.nodes.map(task => (
                                                 <li key={task.id} style={{ display: 'flex', alignItems: 'center', gap: '4px', height: '24px' /* Ensure consistent height */ }}>
                                                   <Checkbox
-                                                     checked={!!task.progress} // Use progress status
+                                                     checked={!!task.progress} // Use progress status (0 = false, 1 = true)
                                                      onChange={(e) => {
-                                                         e.stopPropagation(); // Prevent card header click
-                                                         handleUpdateTask(task.id, { progress: e.target.checked? 1 : 0 });
+                                                         e.stopPropagation();
+                                                         // Pass job.id here
+                                                         handleUpdateTask(job.id, task.id, { progress: e.target.checked ? 1 : 0 });
                                                      }}
                                                      style={{ transform: 'scale(0.8)' }}
                                                      onClick={(e) => e.stopPropagation()} // Prevent card header click
@@ -835,12 +900,13 @@ return (
                                                       size="small"
                                                       value={editingTask.value}
                                                       onChange={(e) => handleEditingTaskInputChange(e.target.value)}
-                                                      onBlur={() => handleUpdateTask(task.id, { name: editingTask.value }, task.name)}
+                                                      onBlur={() => handleUpdateTask(job.id, task.id, { name: editingTask.value }, task.name)}
                                                       onKeyDown={(e) => {
                                                         if (e.key === 'Enter') {
-                                                          handleUpdateTask(task.id, { name: editingTask.value }, task.name);
+                                                          // Pass job.id here
+                                                          handleUpdateTask(job.id, task.id, { name: editingTask.value }, task.name);
                                                         } else if (e.key === 'Escape') {
-                                                          setEditingTask({ id: null, value: '' }); // Cancel editing
+                                                          setEditingTask({ id: null, value: '' });
                                                         }
                                                       }}
                                                       autoFocus
