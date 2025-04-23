@@ -57,7 +57,6 @@ const Watermark = styled.div`
 const JobMap = () => {
     const [showJobs, setShowJobs] = useState(false);
     const [markers, setMarkers] = useState(new Map());
-    const [activeFilters, setActiveFilters] = useState(new Set());
     const [jobs, setJobs] = useState([]);
     const [currentInfoWindow, setCurrentInfoWindow] = useState(null);
     const [isClient, setIsClient] = useState(false);
@@ -81,6 +80,7 @@ const JobMap = () => {
     
     // We're no longer setting initial value here, it will come from JobStatusFilter via localStorage
     const [selectedStatuses, setSelectedStatuses] = useState([]);
+    const [currentFilters, setCurrentFilters] = useState({});
     
     useEffect(() => {
         setIsClient(true);
@@ -237,34 +237,34 @@ const JobMap = () => {
         }
     }, [selectedStatuses, map]);
     
-    const handleFilterClick = (name) => {
-        const newFilters = new Set(activeFilters);
-        if (newFilters.has(name)) {
-            newFilters.delete(name);
-        } else {
-            newFilters.add(name);
-        }
-        setActiveFilters(newFilters);
-        
-        if (newFilters.size === 0) {
-            // Show all markers when no filters are active
-            // (No need to do anything since rendering logic uses activeFilters)
-        }
-    };
-    
     const handleRefresh = () => {
         // Just reload the data without clearing everything
         fetchJobs();
     };
     
-    const handleStatusChange = (newStatuses) => {
-        setSelectedStatuses(newStatuses);
-        // Don't call fetchJobs() here - it will be triggered by the useEffect
+    const handleFiltersChange = (newFilters) => {
+        setCurrentFilters(newFilters);
+
+        // Update selectedStatuses based on the 'Stage' field ID for fetchJobs
+        const stageFieldId = "22NwzQcjYUA4"; // Hardcoded Stage Field ID
+        const stageFilters = newFilters[stageFieldId] || [];
+        
+        // Only update if stageFilters actually changed to avoid unnecessary fetches
+        // Compare arrays properly
+        const sortedCurrentStages = [...selectedStatuses].sort();
+        const sortedNewStages = [...stageFilters].sort();
+        if (JSON.stringify(sortedCurrentStages) !== JSON.stringify(sortedNewStages)) {
+            setSelectedStatuses(stageFilters);
+        }
     };
     
     // Don't render the map container until we're on the client
     if (!isClient) return null;
     
+    // Determine active estimators from currentFilters state
+    const estimatorFieldId = "22NwWybgjBTW"; // Hardcoded Estimator Field ID
+    const activeEstimators = currentFilters[estimatorFieldId] || [];
+
     return (
         <MapContainer>
             <MapStyles />
@@ -279,7 +279,7 @@ const JobMap = () => {
             </TopBar>
             
             <ContentWrapper>
-                <JobStatusFilter onStatusChange={handleStatusChange} />
+                <JobStatusFilter onFiltersChange={handleFiltersChange} />
                 
                 {isLoading && (
                     <div style={{
@@ -348,7 +348,7 @@ const JobMap = () => {
                                         scale: 10
                                     }}
                                     onClick={() => setSelectedJob({ ...job, position })}
-                                    visible={activeFilters.size === 0 || activeFilters.has(estimator)}
+                                    visible={activeEstimators.length === 0 || activeEstimators.includes(estimator)}
                                     label={{
                                         text: job.name,
                                         className: 'marker-label',
@@ -377,8 +377,7 @@ const JobMap = () => {
                     {Object.entries(estimatorColors).map(([name, color]) => (
                         <LegendRow
                             key={name}
-                            active={activeFilters.has(name)}
-                            onClick={() => handleFilterClick(name)}
+                            active={activeEstimators.includes(name)}
                         >
                             <span
                                 style={{
