@@ -1,6 +1,6 @@
 'use client'
 
-import { Layout, Card, Button, Spin, message } from 'antd'
+import { Layout, Card, Button, Spin, message, Checkbox, Input } from 'antd'
 import { useState, useEffect, useCallback } from 'react'
 import styled from 'styled-components'
 import { fetchJobTread, updateJobTread } from '../../utils/JobTreadApi'
@@ -138,6 +138,8 @@ export default function JobKanbanPage() {
     },
   });
   const [columnColors, setColumnColors] = useState({});
+  const [newTaskInputs, setNewTaskInputs] = useState({});
+  const [editingTask, setEditingTask] = useState({ id: null, value: '' });
 
   // Handle filters change from JobStatusFilter
   const handleFiltersChange = useCallback((filters) => {
@@ -281,6 +283,7 @@ export default function JobKanbanPage() {
                 "name": {},
                 "progress": {},
                 "isToDo": {},
+                "progress": {}
               }
             }
           }
@@ -557,6 +560,131 @@ useEffect(() => {
   }
 }, [columns]);
 
+// Function to handle adding a new task
+const handleAddTask = useCallback(async (jobId, taskName) => {
+  if (!taskName || !taskName.trim()) {
+    message.warning("Task name cannot be empty.");
+    return;
+  }
+
+  console.log(`Adding task "${taskName}" to job ${jobId}`);
+  message.loading({ content: 'Adding task...', key: `add-task-${jobId}` });
+
+  try {
+    const mutation = {
+      "createTask": {
+        "$": {
+          "name": taskName.trim(),
+          "isToDo": true,
+          "targetType": "job",
+          "targetId": jobId
+        },
+        "createdTask": {
+           "id": {},
+           "name": {},
+           "isToDo": {}
+        }
+      }
+    };
+
+    const result = await updateJobTread(mutation);
+
+    if (result?.createTask?.createdTask) {
+      message.success({ content: 'Task added successfully!', key: `add-task-${jobId}`, duration: 2 });
+      setNewTaskInputs(prev => ({ ...prev, [jobId]: '' }));
+      fetchJobs();
+    } else {
+      console.error("Failed to add task, unexpected response:", result);
+      message.error({ content: 'Failed to add task. Unexpected response.', key: `add-task-${jobId}`, duration: 3 });
+    }
+  } catch (error) {
+    console.error("Error adding task:", error);
+    message.error({ content: `Error adding task: ${error.message}`, key: `add-task-${jobId}`, duration: 3 });
+  }
+}, [fetchJobs]);
+
+// Generic function to handle updating an existing task (name or completion)
+const handleUpdateTask = useCallback(async (taskId, updatePayload, originalName = null) => {
+  const updateKey = Object.keys(updatePayload)[0]; // 'name' or 'completed'
+  const newValue = updatePayload[updateKey];
+
+  // Trim name if updating name
+  if (updateKey === 'name') {
+    const trimmedValue = newValue.trim();
+    if (!trimmedValue) {
+      message.warning("Task name cannot be empty.");
+      setEditingTask({ id: null, value: '' }); // Reset editing state
+      return;
+    }
+    // Don't update if name hasn't changed
+    if (trimmedValue === originalName) {
+       setEditingTask({ id: null, value: '' }); // Reset editing state
+       return;
+    }
+    updatePayload.name = trimmedValue; // Use trimmed value
+  }
+
+  const actionText = updateKey === 'name' ? 'Updating task name...' : (newValue ? 'Marking task complete...' : 'Marking task incomplete...');
+  console.log(`Updating task ${taskId}:`, updatePayload);
+  message.loading({ content: actionText, key: `update-task-${taskId}` });
+
+  try {
+    const mutation = {
+      "updateTask": {
+        "$": {
+          "id": taskId,
+          ...updatePayload // Spread the payload ({name: '...'} or {progress: true/false})
+        },
+        
+      },
+      "task": { // Request updated fields back
+        "$": {"id": taskId},
+           "id": {},
+           "name": {},
+           "progress": {}
+        }
+    };
+
+    const result = await updateJobTread(mutation);
+
+    if (result?.task) {
+      message.success({ content: 'Task updated!', key: `update-task-${taskId}`, duration: 2 });
+      // Reset editing state if a name was successfully updated
+      if (updateKey === 'name') {
+         setEditingTask({ id: null, value: '' });
+      }
+      fetchJobs(); // Refresh the job list to show changes
+    } else {
+      console.error("Failed to update task, unexpected response:", result);
+      message.error({ content: 'Failed to update task.', key: `update-task-${taskId}`, duration: 3 });
+      // Reset editing state on failure too if it was a name update
+       if (updateKey === 'name') {
+         setEditingTask({ id: null, value: '' });
+       }
+    }
+  } catch (error) {
+    console.error("Error updating task:", error);
+    message.error({ content: `Error updating task: ${error.message}`, key: `update-task-${taskId}`, duration: 3 });
+     // Reset editing state on error too if it was a name update
+     if (updateKey === 'name') {
+       setEditingTask({ id: null, value: '' });
+     }
+  }
+}, [fetchJobs]);
+
+// Handler to update the specific input field state for new tasks
+const handleNewTaskInputChange = (jobId, value) => {
+  setNewTaskInputs(prev => ({
+    ...prev,
+    [jobId]: value
+  }));
+};
+
+// Handler to update the state for the task being edited inline
+const handleEditingTaskInputChange = (value) => {
+  setEditingTask(prev => ({ ...prev, value }));
+};
+
 return (
   <Layout style={{ minHeight: '100vh', background: 'var(--background)' }}>
     <ThemeSwitch />
@@ -601,6 +729,7 @@ return (
                           {columns[columnId].map((job, index) => {
                             const isExpanded = expandedJobIds.has(job.id);
                             const hasDetails = !!jobDetails[job.id];
+                            const currentNewTaskValue = newTaskInputs[job.id] || '';
 
                             // Get job info for display in the collapsed view
                             const estimator = job.customFieldValues.nodes.find(node =>
@@ -680,6 +809,83 @@ return (
                                     <div style={{ marginBottom: isExpanded ? 12 : 0, fontSize: '12px', color: 'var(--text-secondary)' }}>
                                       {stage} | {address}
                                     </div>
+
+                                    {/* --- Task Section (Only when NOT expanded) --- */}
+                                    {!isExpanded && (
+                                      <div style={{ marginTop: '8px', fontSize: '12px' }}>
+                                        {/* Existing Tasks */}
+                                        {job.tasks?.nodes && job.tasks.nodes.length > 0 && (
+                                          <div style={{ marginBottom: '4px' }}>
+                                            <strong>To-Do:</strong>
+                                            <ul style={{ margin: '2px 0 0 0', padding: 0, listStyleType: 'none' }}>
+                                              {job.tasks.nodes.map(task => (
+                                                <li key={task.id} style={{ display: 'flex', alignItems: 'center', gap: '4px', height: '24px' /* Ensure consistent height */ }}>
+                                                  <Checkbox
+                                                     checked={!!task.progress} // Use progress status
+                                                     onChange={(e) => {
+                                                         e.stopPropagation(); // Prevent card header click
+                                                         handleUpdateTask(task.id, { progress: e.target.checked? 1 : 0 });
+                                                     }}
+                                                     style={{ transform: 'scale(0.8)' }}
+                                                     onClick={(e) => e.stopPropagation()} // Prevent card header click
+                                                   />
+                                                  {editingTask.id === task.id ? (
+                                                    // --- Editing Input ---
+                                                    <Input
+                                                      size="small"
+                                                      value={editingTask.value}
+                                                      onChange={(e) => handleEditingTaskInputChange(e.target.value)}
+                                                      onBlur={() => handleUpdateTask(task.id, { name: editingTask.value }, task.name)}
+                                                      onKeyDown={(e) => {
+                                                        if (e.key === 'Enter') {
+                                                          handleUpdateTask(task.id, { name: editingTask.value }, task.name);
+                                                        } else if (e.key === 'Escape') {
+                                                          setEditingTask({ id: null, value: '' }); // Cancel editing
+                                                        }
+                                                      }}
+                                                      autoFocus
+                                                      style={{ flexGrow: 1, fontSize: '12px', border: 'none', padding: '0 2px', boxShadow: 'none', height: '20px', background: 'var(--input-background-hover)' }}
+                                                      onClick={(e) => e.stopPropagation()} // Prevent card header click
+                                                    />
+                                                  ) : (
+                                                    // --- Display Span ---
+                                                    <span
+                                                      style={{ textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap', cursor: 'pointer', flexGrow: 1, padding: '0 2px', lineHeight: '20px' /* Align with input */ }}
+                                                      onClick={(e) => {
+                                                          e.stopPropagation(); // Prevent card header click
+                                                          setEditingTask({ id: task.id, value: task.name });
+                                                      }}
+                                                      title="Click to edit"
+                                                    >
+                                                      {task.name}
+                                                    </span>
+                                                  )}
+                                                </li>
+                                              ))}
+                                            </ul>
+                                          </div>
+                                        )}
+
+                                        {/* Add New Task Input */}
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: job.tasks?.nodes?.length > 0 ? '4px' : '0' }}>
+                                          <Checkbox checked={false} disabled style={{ transform: 'scale(0.8)', pointerEvents: 'none' }} />
+                                          <Input
+                                            size="small"
+                                            placeholder="Add a task..."
+                                            value={currentNewTaskValue}
+                                            onChange={(e) => handleNewTaskInputChange(job.id, e.target.value)}
+                                            onKeyDown={(e) => {
+                                              if (e.key === 'Enter' && currentNewTaskValue.trim()) {
+                                                handleAddTask(job.id, currentNewTaskValue);
+                                              }
+                                            }}
+                                            style={{ flexGrow: 1, fontSize: '12px' }}
+                                             onClick={(e) => e.stopPropagation()} // Prevent card header click
+                                          />
+                                        </div>
+                                      </div>
+                                    )}
+                                    {/* --- End Task Section --- */}
 
                                     <JobCardContent isExpanded={isExpanded}>
                                       {isExpanded && loadingJobDetails.has(job.id) && (
