@@ -6,6 +6,7 @@ import { Form, Input, Button, Card, Layout, Typography } from 'antd';
 import { UserOutlined, LockOutlined } from '@ant-design/icons';
 import { useAuth } from '../../contexts/AuthContext';
 import ThemeSwitch from '../components/ThemeSwitch';
+import Link from 'next/link';
 
 const { Content } = Layout;
 const { Title } = Typography;
@@ -71,6 +72,12 @@ export default function LoginPage() {
                 size="large"
               />
             </Form.Item>
+
+            <div style={{ marginBottom: '24px', textAlign: 'right' }}>
+              <Link href="/forgot-password" style={{ color: 'var(--primary-color)' }}>
+                Forgot Password?
+              </Link>
+            </div>
 
             <Form.Item>
               <Button 
