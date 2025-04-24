@@ -5,7 +5,7 @@ import { Layout, Form, Input, Button, Card, message, Alert, Spin } from 'antd'
 import axios from 'axios'
 import { useSearchParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
-import ThemeSwitch from '@/components/ThemeSwitch'  
+import ThemeSwitch from '../components/ThemeSwitch' // Adjust path as needed
 
 const { Content } = Layout
 
