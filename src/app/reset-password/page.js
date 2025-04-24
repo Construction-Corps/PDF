@@ -1,24 +1,24 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { Layout, Form, Input, Button, Card, message, Alert, Spin } from 'antd'
 import axios from 'axios'
-import { useParams, useRouter } from 'next/navigation'
+import { useSearchParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import ThemeSwitch from '../../components/ThemeSwitch' // Adjust path as needed
 
 const { Content } = Layout
 
-export default function ResetPasswordPage() {
+function ResetPasswordContent() {
   const [form] = Form.useForm()
   const [loading, setLoading] = useState(false)
   const [isValidatingToken, setIsValidatingToken] = useState(true)
   const [isTokenValid, setIsTokenValid] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState(false)
-  const params = useParams()
+  const searchParams = useSearchParams()
   const router = useRouter()
-  const token = params?.token
+  const token = searchParams.get('token')
 
   useEffect(() => {
     const validateToken = async () => {
@@ -183,16 +183,23 @@ export default function ResetPasswordPage() {
              </div>
         </Form>
     );
+  }
+
+  return renderContent();
 }
 
+export default function ResetPasswordPage() {
   return (
-    <Layout style={{ minHeight: '100vh', background: 'var(--background)' }}>
-      <ThemeSwitch />
-      <Content style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '50px' }}>
-        <Card title="Set New Password" style={{ width: 400, background: 'var(--card-background)' }}>
-          {renderContent()}
-        </Card>
-      </Content>
-    </Layout>
+    // Wrap with Suspense because useSearchParams requires it
+    <Suspense fallback={<Spin tip="Loading page..."><div style={{ minHeight: '100vh' }} /></Spin>}>
+      <Layout style={{ minHeight: '100vh', background: 'var(--background)' }}>
+        <ThemeSwitch />
+        <Content style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '50px' }}>
+          <Card title="Set New Password" style={{ width: 400, background: 'var(--card-background)' }}>
+            <ResetPasswordContent />
+          </Card>
+        </Content>
+      </Layout>
+    </Suspense>
   )
-} 
+}
