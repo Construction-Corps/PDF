@@ -1,6 +1,6 @@
 'use client'
 
-import { Layout, Card, Button } from 'antd'
+import { Layout, Card, Button, Spin } from 'antd'
 import Link from 'next/link'
 import ThemeSwitch from './components/ThemeSwitch'
 import { useAuth } from '../contexts/AuthContext'
@@ -9,7 +9,7 @@ import { useRouter } from 'next/navigation'
 const { Content } = Layout
 
 export default function DirectoryPage() {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, visibleMenuItems, menuLoading } = useAuth();
   const router = useRouter();
   
   return (
@@ -20,42 +20,28 @@ export default function DirectoryPage() {
         
         {isAuthenticated ? (
           <div style={{ maxWidth: '800px', margin: '0 auto' }}>
-            <Card 
-              title="Job Map" 
-              style={{ marginBottom: '20px' }}
-              extra={<Link href="/job-map">Open →</Link>}
-            >
-              View all jobs on an interactive map
-            </Card>
-            <Card 
-              title="Payment Schedule" 
-              style={{ marginBottom: '20px' }}
-              extra={<Link href="/payment-schedule">Open →</Link>}
-            >
-              Calculate payment schedule
-            </Card>
-            <Card 
-              title="Job Checklist" 
-              style={{ marginBottom: '20px' }}
-              extra={<Link href="/job-checklist">Open →</Link>}
-            >
-              View all jobs on a checklist
-            </Card>
-            <Card 
-              title="Job Kanban - Stage" 
-              style={{ marginBottom: '20px' }}
-              extra={<Link href="/job-kanban?fieldId=22NwzQcjYUA4">Open →</Link>}
-            >
-              Manage jobs with drag-and-drop kanban by job stage
-            </Card>
-            <Card 
-              title="Job Kanban - Design Stage" 
-              style={{ marginBottom: '20px' }}
-              extra={<Link href="/job-kanban?fieldId=22P7Rp2AWjYT">Open →</Link>}
-            >
-              Manage jobs with drag-and-drop kanban by design stage
-            </Card>
-            {/* Add more cards here for other sections */}
+            {menuLoading && (
+              <div style={{ textAlign: 'center', margin: '40px 0' }}>
+                  <Spin size="large" tip="Loading tools..." />
+              </div>
+            )}
+
+            {!menuLoading && visibleMenuItems.map(item => (
+              <Card 
+                key={item.url || item.name}
+                title={item.name}
+                style={{ marginBottom: '20px' }}
+                extra={<Link href={item.url}>Open →</Link>}
+              >
+                Access the {item.name} tool.
+              </Card>
+            ))}
+
+            {!menuLoading && visibleMenuItems.length === 0 && (
+                <Card>
+                    No tools available or failed to load.
+                </Card>
+            )}
           </div>
         ) : (
           <div style={{ 

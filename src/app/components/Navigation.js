@@ -1,14 +1,14 @@
 'use client';
 
 import { useState } from 'react';
-import { Button, Drawer, Menu, Divider } from 'antd';
+import { Button, Drawer, Menu, Divider, Spin } from 'antd';
 import { MenuOutlined, LoginOutlined, LogoutOutlined, UserOutlined } from '@ant-design/icons';
 import Link from 'next/link';
 import { useAuth } from '../../contexts/AuthContext';
 
 const Navigation = () => {
   const [menuVisible, setMenuVisible] = useState(false);
-  const { isAuthenticated, user, logout } = useAuth();
+  const { isAuthenticated, user, logout, visibleMenuItems, menuLoading } = useAuth();
   
   return (
     <>
@@ -38,28 +38,17 @@ const Navigation = () => {
             <Link href="/">Home</Link>
           </Menu.Item>
           
-          {isAuthenticated ? (
-            <>
-              <Menu.Item key="job-map">
-                <Link href="/job-map">Job Map</Link>
-              </Menu.Item>
-              <Menu.Item key="payment-schedule">
-                <Link href="/payment-schedule">Payment Schedule</Link>
-              </Menu.Item>
-              <Menu.Item key="job-checklist">
-                <Link href="/job-checklist">Job Checklist</Link>
-              </Menu.Item>
-              <Menu.Item key="job-kanban-stage">
-                <Link href="/job-kanban?fieldId=22NwzQcjYUA4">Job Kanban - Stage</Link>
-              </Menu.Item>
-              <Menu.Item key="job-kanban-design-stage">
-                <Link href="/job-kanban?fieldId=22P7Rp2AWjYT">Job Kanban - Design Stage</Link>
-              </Menu.Item>
-              <Menu.Item key="folder-creator">
-                <Link href="/folder-creator">Folder Creator</Link>
-              </Menu.Item>
-            </>
-          ) : null}
+          {/* Dynamic menu items based on context */}
+          {isAuthenticated && menuLoading && (
+            <Menu.Item key="loading" disabled>
+              <Spin size="small" /> Loading items...
+            </Menu.Item>
+          )}
+          {isAuthenticated && !menuLoading && visibleMenuItems.map(item => (
+            <Menu.Item key={item.url || item.name}> {/* Use url or name as key */}
+              <Link href={item.url}>{item.name}</Link>
+            </Menu.Item>
+          ))}
         </Menu>
         
         <Divider style={{ margin: '24px 0 16px' }} />
