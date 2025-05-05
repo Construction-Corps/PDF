@@ -1,37 +1,75 @@
 'use client'
 
-import { useState } from 'react';
-import { Form, Input, Button, message, Typography, Card, Alert } from 'antd';
+import { useState, useEffect } from 'react';
+import { Form, Input, Button, message, Typography, Card, Alert, Select } from 'antd';
 import axios from 'axios';
-import { useAuth } from '../../../contexts/AuthContext'; // Adjust path as necessary
+import { useAuth } from '@/contexts/AuthContext';
 
 const { Title, Paragraph } = Typography;
+const { Option } = Select;
 
 export default function InviteUserPage() {
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const { getToken } = useAuth(); // Use useAuth to get the token
+  const [roles, setRoles] = useState([]);
+  const [rolesLoading, setRolesLoading] = useState(false);
+  const { user } = useAuth(); // Only get what's needed, or nothing if not used
+
+  useEffect(() => {
+    const fetchRoles = async () => {
+      setRolesLoading(true);
+      const token = localStorage.getItem('authToken');
+      if (!token) {
+        message.error('Authentication required to fetch roles.');
+        setRolesLoading(false);
+        return;
+      }
+
+      try {
+        const response = await axios.get('https://ccbe.onrender.com/api/auth/roles/', {
+          headers: {
+            'Authorization': `Token ${token}`
+          }
+        });
+        setRoles(response.data || []);
+      } catch (err) {
+        console.error("Fetch Roles Error:", err);
+        message.error('Failed to load roles. Please try again.');
+      } finally {
+        setRolesLoading(false);
+      }
+    };
+
+    fetchRoles();
+  }, []);
 
   const handleSendInvite = async (values) => {
     setLoading(true);
     setError('');
-    const token = getToken(); // Retrieve the auth token
+    const token = localStorage.getItem('authToken'); // Get token from localStorage
 
     if (!token) {
         message.error('Authentication token not found. Please log in again.');
         setError('Authentication required.');
         setLoading(false);
-        return; 
+        return;
     }
+
+    const params = {
+        email: values.email
+    };
+    if (values.roleId) {
+        params.role = values.roleId;
+    } else {
+        params.role = 2;
+    } 
 
     try {
         const response = await axios.get('https://ccbe.onrender.com/api/auth/invite/', {
-            params: {
-                email: values.email
-            },
+            params: params,
             headers: {
-                'Authorization': `Token ${token}` // Include the token in the header
+                'Authorization': `Token ${token}`
             }
         });
 
@@ -39,7 +77,6 @@ export default function InviteUserPage() {
             message.success(`Invitation sent successfully to ${values.email}`);
             form.resetFields();
         } else {
-            // Should ideally not happen if backend returns proper errors
             message.error('Failed to send invitation. Unexpected response.');
             setError('An unexpected error occurred.');
         }
@@ -47,7 +84,7 @@ export default function InviteUserPage() {
     } catch (err) {
         console.error("Send Invite Error:", err);
         if (err.response && err.response.data) {
-            const backendError = err.response.data.detail || err.response.data.error || JSON.stringify(err.response.data); // Try to get specific error
+            const backendError = err.response.data.detail || err.response.data.error || JSON.stringify(err.response.data);
             setError(`Failed to send invite: ${backendError}`);
             message.error(`Failed to send invite: ${backendError}`);
         } else {
@@ -81,6 +118,19 @@ export default function InviteUserPage() {
           ]}
         >
           <Input placeholder="new.user@example.com" />
+        </Form.Item>
+
+        <Form.Item
+          label="Assign Role (Optional)"
+          name="roleId"
+        >
+          <Select placeholder="Select a role" loading={rolesLoading} allowClear>
+            {roles.map(role => (
+              <Option key={role.id} value={role.id}>
+                {role.name}
+              </Option>
+            ))}
+          </Select>
         </Form.Item>
 
         {error && (

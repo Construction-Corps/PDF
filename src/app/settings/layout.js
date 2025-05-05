@@ -1,12 +1,12 @@
 'use client'
 
 import { useState } from 'react';
-import { Layout, Menu } from 'antd';
+import { Layout, Menu, Spin } from 'antd';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { UserAddOutlined, SettingOutlined } from '@ant-design/icons';
-import ThemeSwitch from '../../components/ThemeSwitch'; // Adjust path as necessary
-import { useAuth } from '../../../contexts/AuthContext'; // Adjust path
+import ThemeSwitch from '../components/ThemeSwitch'; // Adjust path as necessary
+import { useAuth } from '../../contexts/AuthContext'; // Adjust path
 
 const { Content, Sider } = Layout;
 
@@ -48,7 +48,7 @@ export default function SettingsLayout({ children }) {
 
   // Redirect if not logged in or still loading auth state
   // (Could add more robust checks here if needed)
-  if (loading) return <Layout style={{ minHeight: '100vh' }}><Spin size="large" /></Layout>; 
+  if (loading) return <Layout style={{ minHeight: '100vh' }}><Spin size="large" /></Layout>;  
   // if (!user && typeof window !== 'undefined') { router.push('/login'); return null; }
 
   return (
