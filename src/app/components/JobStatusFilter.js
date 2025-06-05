@@ -190,25 +190,32 @@ const JobStatusFilter = ({
           
           // Initialize filter state for each field
           fields.forEach(field => {
-            const stateKey = field.name.toLowerCase().replace(/\s+/g, '_');
             const storageKey = `jobFilter_${field.id}`;
             
             // Load values from localStorage
             let defaultValues = [];
+            // First, apply hardcoded fallback defaults for the 'Stage' field.
             if (field.name === 'Stage') {
               defaultValues = ["Job Started 🔨", "Job Mid Way ⚒️", "Job Complete ✅", 
                               "Pre-Production 🗓️", "Awaiting Payment ⏲️"];
             }
-            if (defaultSelections) {
-              defaultValues = defaultSelections.defaults;
+            
+            // Then, override with specific defaults from props if they exist for this field.
+            if (Array.isArray(defaultSelections)) {
+              const specificDefault = defaultSelections.find(d => d.fieldId === field.id);
+              // A default object for this field was found in the array.
+              if (specificDefault) {
+                // Use the specific defaults. This can be an array of values or null to clear it.
+                defaultValues = specificDefault.defaults;
+              }
             }
             
             const values = loadFromStorage(storageKey, defaultValues);
             
-            // Update filterState for this field
+            // Update filterState for this field using only its ID as the key
             setFilterState(prev => ({
               ...prev,
-              [stateKey]: values
+              [field.id]: values
             }));
           });
           
@@ -251,48 +258,33 @@ const JobStatusFilter = ({
   // Toggle value in a field
   const toggleFieldValue = (fieldId, stateKey, value) => {
     setFilterState(prev => {
-      const currentValues = prev[stateKey] || [];
+      const currentValues = prev[fieldId] || []; // Use ID to get values
       const newValues = currentValues.includes(value)
         ? currentValues.filter(v => v !== value)
         : [...currentValues, value];
       
-      // Save to localStorage
       saveToStorage(`jobFilter_${fieldId}`, newValues);
       
-      return {
-        ...prev,
-        [stateKey]: newValues
-      };
+      return { ...prev, [fieldId]: newValues }; // Only use ID as key
     });
   };
   
   // Select all values for a field
   const selectAllValues = (fieldId, stateKey, options) => {
     setFilterState(prev => {
-      // Save to localStorage
       saveToStorage(`jobFilter_${fieldId}`, options);
-      
-      return {
-        ...prev,
-        [stateKey]: [...options]
-      };
+      return { ...prev, [fieldId]: [...options] }; // Only use ID as key
     });
   };
   
   // Clear all values for a field
   const clearValues = (fieldId, stateKey) => {
     setFilterState(prev => {
-      // Save to localStorage
       saveToStorage(`jobFilter_${fieldId}`, []);
-      
-      return {
-        ...prev,
-        [stateKey]: []
-      };
+      return { ...prev, [fieldId]: [] }; // Only use ID as key
     });
   };
   
-  // Handle search change
   const handleSearchChange = (value) => {
     setFilterState(prev => ({
       ...prev,
@@ -328,73 +320,6 @@ const JobStatusFilter = ({
     });
   };
   
-  // Notify parent when filters change
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      if (onFiltersChange) {
-        // Build the filter object with fieldIds as keys where needed
-        const filtersWithIds = { ...filterState };
-        
-        // Add field IDs as keys for dynamic fields
-        fieldsData.forEach(field => {
-          const stateKey = field.name.toLowerCase().replace(/\s+/g, '_');
-          const values = filterState[stateKey] || [];
-          
-          // Add field ID as a key with its values
-          if (values.length > 0) {
-            filtersWithIds[field.id] = values;
-          }
-        });
-        
-        onFiltersChange(filtersWithIds);
-      }
-    }, 300);
-    
-    return () => clearTimeout(timer);
-  }, [filterState, fieldsData, onFiltersChange]);
-  
-  // Render field filter section
-  const renderFieldFilter = (field) => {
-    const stateKey = field.name.toLowerCase().replace(/\s+/g, '_');
-    const values = filterState[stateKey] || [];
-    const options = field.options || [];
-    
-    return (
-      <FilterSection isMobile={isMobile} key={field.id}>
-        <SectionTitle isMobile={isMobile}>{field.name}</SectionTitle>
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-          <Button 
-            size={isMobile ? "small" : "middle"} 
-            onClick={() => selectAllValues(field.id, stateKey, options)}
-          >
-            {isMobile ? 'All' : 'Select All'}
-          </Button>
-          <Button 
-            size={isMobile ? "small" : "middle"} 
-            onClick={() => clearValues(field.id, stateKey)}
-          >
-            {isMobile ? '✕' : 'Clear'}
-          </Button>
-        </div>
-        <div style={{ 
-          maxHeight: isMobile ? '150px' : '200px', 
-          overflowY: 'auto',
-          fontSize: isMobile ? '13px' : '14px'
-        }}>
-          {options.map(option => (
-            <FilterOption key={option} onClick={() => toggleFieldValue(field.id, stateKey, option)}>
-              <Checkbox 
-                checked={values.includes(option)} 
-                style={{ marginRight: '8px' }} 
-              />
-              {option}
-            </FilterOption>
-          ))}
-        </div>
-      </FilterSection>
-    );
-  };
-  
   // Get all possible sort fields
   const sortFields = [
     { label: "Created Date", value: "createdAt" },
@@ -406,6 +331,42 @@ const JobStatusFilter = ({
       value: field.id
     }))
   ];
+  
+  // Notify parent when filters change
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (onFiltersChange) {
+        onFiltersChange(filterState); // Pass state directly
+      }
+    }, 300);
+    
+    return () => clearTimeout(timer);
+  }, [filterState, onFiltersChange]);
+  
+  // Render field filter section
+  const renderFieldFilter = (field) => {
+    const stateKey = field.name.toLowerCase().replace(/\s+/g, '_');
+    const values = filterState[field.id] || []; // Use ID to get values
+    const options = field.options || [];
+    
+    return (
+      <FilterSection isMobile={isMobile} key={field.id}>
+        <SectionTitle isMobile={isMobile}>{field.name}</SectionTitle>
+        <FilterRow>
+          <Button onClick={() => selectAllValues(field.id, stateKey, options)} size="small" style={{ flex: 1 }}>Select All</Button>
+          <Button onClick={() => clearValues(field.id, stateKey)} size="small" style={{ flex: 1 }}>Clear</Button>
+        </FilterRow>
+        <div style={{ maxHeight: '150px', overflowY: 'auto', border: '1px solid #f0f0f0', borderRadius: '2px', padding: '4px' }}>
+          {options.map(option => (
+            <FilterOption key={option} onClick={() => toggleFieldValue(field.id, stateKey, option)}>
+              <Checkbox checked={values.includes(option)} />
+              <span style={{ marginLeft: '8px' }}>{option}</span>
+            </FilterOption>
+          ))}
+        </div>
+      </FilterSection>
+    );
+  };
   
   return (
     <FilterContainer isMobile={isMobile}>

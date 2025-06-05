@@ -426,6 +426,8 @@ useEffect(() => {
 
   // Check if filter has selections for this fieldId
   const hasFieldSelections = filterParams[fieldId] && filterParams[fieldId].length > 0;
+  console.log("[JobKanbanPage] fieldName", fieldName);
+  console.log("[JobKanbanPage] filterParams", filterParams);
 
   // Use selected options if available, otherwise use all stageOptions
   const displayOptions = hasFieldSelections ? filterParams[fieldId] : stageOptions;
@@ -725,8 +727,10 @@ const handleEditingTaskInputChange = (value) => {
 
 const defaultSelections = () => {
   if (fieldId === "22P7Rp2AWjYT") {
-    return { fieldId: "22P7Rp2AWjYT", defaults: [ "Design Proposal in Progress 📝",
-            "Design Proposal Sent 📤","Design Sold 💲","In Planning & Design 🎨", "Design Approved by Client👍" ] };
+    return [{ fieldId: "22NwzQcjYUA4", defaults: [ "Design Proposal in Progress 📝",
+            "Design Proposal Sent 📤","Design Sold 💲","In Planning & Design 🎨", "Design Approved by Client👍" ] },
+          { fieldId: "22P7Rp2AWjYT", defaults: null },
+          ];
   } else {
     return null;
   }
