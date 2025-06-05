@@ -723,6 +723,15 @@ const handleEditingTaskInputChange = (value) => {
   setEditingTask(prev => ({ ...prev, value }));
 };
 
+const defaultSelections = () => {
+  if (fieldId === "22P7Rp2AWjYT") {
+    return { fieldId: "22P7Rp2AWjYT", defaults: [ "Design Proposal in Progress 📝",
+            "Design Proposal Sent 📤","Design Sold 💲","In Planning & Design 🎨", "Design Approved by Client👍" ] };
+  } else {
+    return null;
+  }
+}
+
 return (
   <Layout style={{ minHeight: '100vh', background: 'var(--background)' }}>
     <ThemeSwitch />
@@ -736,6 +745,7 @@ return (
         onFiltersChange={handleFiltersChange}
         onFieldOptionsLoaded={handleFieldOptionsLoaded}
         customFieldId={fieldId}
+        defaultSelections={defaultSelections()}
       />
 
       <KanbanContainer>

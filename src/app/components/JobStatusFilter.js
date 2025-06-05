@@ -96,6 +96,7 @@ const JobStatusFilter = ({
   onFiltersChange,
   onFieldOptionsLoaded,
   customFieldId = null, // Additional field ID from parent
+  defaultSelections = null,
   initialSelections = null,
   extraButtons = null 
 }) => {
@@ -197,6 +198,9 @@ const JobStatusFilter = ({
             if (field.name === 'Stage') {
               defaultValues = ["Job Started 🔨", "Job Mid Way ⚒️", "Job Complete ✅", 
                               "Pre-Production 🗓️", "Awaiting Payment ⏲️"];
+            }
+            if (defaultSelections) {
+              defaultValues = defaultSelections.defaults;
             }
             
             const values = loadFromStorage(storageKey, defaultValues);
