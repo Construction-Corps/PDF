@@ -327,10 +327,11 @@ const JobStatusFilter = ({
     { label: "Updated Date", value: "updatedAt" },
     { label: "Job Name", value: "name" },
     // Add field-specific options
-    ...fieldsData.map(field => ({
-      label: field.name,
-      value: field.id
-    }))
+    // can't currently sort by custom fields so I commented it out
+    // ...fieldsData.map(field => ({
+    //   label: field.name,
+    //   value: field.id
+    // }))
   ];
   
   // Notify parent when filters change
