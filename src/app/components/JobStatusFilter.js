@@ -98,7 +98,8 @@ const JobStatusFilter = ({
   customFieldId = null, // Additional field ID from parent
   defaultSelections = null,
   initialSelections = null,
-  extraButtons = null 
+  extraButtons = null,
+  hideFilterOptions = []
 }) => {
   const { isMobile } = useWindowSize();
   const [open, setOpen] = useState(false);
@@ -155,7 +156,7 @@ const JobStatusFilter = ({
       try {
         // Get all needed field IDs
         const fieldIds = [
-          ...STANDARD_FIELDS.map(f => f.id),
+          ...STANDARD_FIELDS.map(f => !hideFilterOptions.includes(f.id) ? f.id : null),
           // Add custom field if provided and not already included
           ...(customFieldId && !STANDARD_FIELDS.some(f => f.id === customFieldId) 
               ? [customFieldId] 

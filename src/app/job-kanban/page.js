@@ -750,6 +750,7 @@ return (
         onFieldOptionsLoaded={handleFieldOptionsLoaded}
         customFieldId={fieldId}
         defaultSelections={defaultSelections()}
+        hideFilterOptions={['22NwWybgjBTW']}
       />
 
       <KanbanContainer>
