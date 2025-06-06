@@ -18,13 +18,10 @@ const { Content } = Layout
 const KanbanContainer = styled.div`
   display: flex;
   flex-direction: column;
-  height: 100%;
-  width: 100%;
 `
 
 const BoardContainer = styled.div`
   display: flex;
-  overflow-x: auto;
   padding: 20px 0;
   min-height: calc(100vh - 200px);
 `
