@@ -726,7 +726,7 @@ const defaultSelections = () => {
   if (fieldId === "22P7Rp2AWjYT") {
     return [{ fieldId: "22NwzQcjYUA4", defaults: [ "Design Proposal in Progress 📝",
             "Design Proposal Sent 📤","Design Sold 💲","In Planning & Design 🎨", "Design Approved by Client👍" ] },
-          { fieldId: "22P7Rp2AWjYT", defaults: null },
+          { fieldId: "22P7Rp2AWjYT", defaults: ["DEV. TEAM", "IN REVIEW/QC- PABLO"] },
           ];
   } else {
     return null;

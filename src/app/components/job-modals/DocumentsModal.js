@@ -62,9 +62,9 @@ const DocumentsModal = ({ jobId, open, onClose, job}) => {
               </div>
               <div className="document-details">
                 <div>Status: {doc.status}</div>
-                <div>Price: {formatUSD(doc.price)}</div>
+                {/* <div>Price: {formatUSD(doc.price)}</div>
                 <div>Balance: {formatUSD(doc.balance)}</div>
-                <div>Amount Paid: {formatUSD(doc.amountPaid)}</div>
+                <div>Amount Paid: {formatUSD(doc.amountPaid)}</div> */}
                 {doc.issueDate && (
                   <div>Issued: {new Date(doc.issueDate).toLocaleDateString()}</div>
                 )}
