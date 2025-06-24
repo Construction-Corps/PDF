@@ -6,10 +6,14 @@ import dynamic from 'next/dynamic';
 const QRCode = dynamic(() => import('react-qr-code').then(mod => mod.default), { ssr: false });
 
 const QRCodeModal = ({ open, onCancel, qrCodeValue, title = 'QR Code', register = false }) => {
-  // Construct the full URL if it's for registration
-  const finalQrValue = register && qrCodeValue 
-    ? `${window.location.origin}/register-device?token=${qrCodeValue}`
-    : qrCodeValue;
+  // Conditionally construct the full URL for the QR code
+  const finalQrValue = qrCodeValue
+    ? (register
+        // URL for device registration tokens
+        ? `${window.location.origin}/register-device?token=${qrCodeValue}`
+        // URL for public item scanning
+        : `${window.location.origin}/scan?qrId=${qrCodeValue}`)
+    : null;
 
   return (
     <Modal
