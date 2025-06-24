@@ -32,14 +32,7 @@ const ScanContent = () => {
       return;
     }
 
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => setLocation(pos.coords),
-        (err) => console.error("Could not get location:", err)
-      );
-    }
-
-    const performInitialScan = async (currentDeviceId) => {
+    const performInitialScan = async (currentDeviceId, loc) => {
       try {
         // Fetch item details first to show on the page
         const allItems = await fetchInventory('items');
@@ -50,7 +43,7 @@ const ScanContent = () => {
         setItem(foundItem);
         
         // Then, perform the automatic scan
-        const initialScanLog = await publicScanItem(qrId, currentDeviceId, 'AUTO', location?.latitude, location?.longitude);
+        const initialScanLog = await publicScanItem(qrId, currentDeviceId, 'AUTO', loc?.latitude, loc?.longitude);
         setScanLog(initialScanLog);
         setStatus('ready');
 
@@ -66,9 +59,25 @@ const ScanContent = () => {
     };
 
     if (id) {
-      performInitialScan(id);
+        if (navigator.geolocation) {
+          navigator.geolocation.getCurrentPosition(
+            (pos) => {
+                setLocation(pos.coords);
+                performInitialScan(id, pos.coords);
+            },
+            (err) => {
+                console.warn("Could not get location. Proceeding without it.", err);
+                message.warn("Could not get location. Proceeding without it.");
+                performInitialScan(id, null);
+            }
+          );
+        } else {
+          console.warn("Geolocation not supported. Proceeding without it.");
+          message.warn("Geolocation not supported. Proceeding without it.");
+          performInitialScan(id, null);
+        }
     }
-  }, [qrId, deviceId, location?.latitude, location?.longitude, router]);
+  }, [qrId, router]);
 
   const handleOverride = async () => {
     if (!scanLog) return;
