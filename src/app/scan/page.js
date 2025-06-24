@@ -1,21 +1,23 @@
 'use client';
 
 import React, { useEffect, useState, Suspense } from 'react';
-import { useSearchParams } from 'next/navigation';
-import { Button, message, Card, Spin, Typography, Result, Row, Col } from 'antd';
-import { CheckOutlined, EnterOutlined, AuditOutlined } from '@ant-design/icons';
+import { useSearchParams, useRouter } from 'next/navigation';
+import { Button, message, Card, Spin, Typography, Result, Row, Col, Tag } from 'antd';
+import { SwapOutlined } from '@ant-design/icons';
 import { getDeviceId } from '../../utils/deviceId';
-import { publicScanItem, fetchInventory } from '../../utils/InventoryApi';
+import { publicScanItem, fetchInventory, updateScanAction } from '../../utils/InventoryApi';
 
-const { Title, Text } = Typography;
+const { Title, Text, Paragraph } = Typography;
 
 const ScanContent = () => {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const qrId = searchParams.get('qrId');
   
   const [deviceId, setDeviceId] = useState(null);
   const [location, setLocation] = useState(null);
   const [item, setItem] = useState(null);
+  const [scanLog, setScanLog] = useState(null);
   const [status, setStatus] = useState('loading'); // loading, ready, success, error
   const [errorMessage, setErrorMessage] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
@@ -33,56 +35,70 @@ const ScanContent = () => {
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (pos) => setLocation(pos.coords),
-        (err) => {
-          console.error(err);
-          message.error('Could not get location. Please enable location services.');
-        }
+        (err) => console.error("Could not get location:", err)
       );
     }
 
-    const fetchItemDetails = async () => {
-        try {
-            const allItems = await fetchInventory('items');
-            const foundItem = allItems.find(i => i.qr_code === qrId);
-            if (foundItem) {
-                setItem(foundItem);
-                setStatus('ready');
-            } else {
-                setErrorMessage(`No item found with QR Code: ${qrId}`);
-                setStatus('error');
-            }
-        } catch (error) {
-            setErrorMessage('Failed to fetch item details.');
-            setStatus('error');
+    const performInitialScan = async (currentDeviceId) => {
+      try {
+        // Fetch item details first to show on the page
+        const allItems = await fetchInventory('items');
+        const foundItem = allItems.find(i => i.qr_code === qrId);
+        if (!foundItem) {
+          throw new Error(`No item found with QR Code: ${qrId}`);
         }
+        setItem(foundItem);
+        
+        // Then, perform the automatic scan
+        const initialScanLog = await publicScanItem(qrId, currentDeviceId, 'AUTO', location?.latitude, location?.longitude);
+        setScanLog(initialScanLog);
+        setStatus('ready');
+
+      } catch (error) {
+        if (error.message.toLowerCase().includes('device not found')) {
+          // If device is not registered, redirect to the registration page
+          router.push('/register-device');
+        } else {
+          setErrorMessage(error.message || 'An unknown error occurred during the initial scan.');
+          setStatus('error');
+        }
+      }
     };
 
-    fetchItemDetails();
-  }, [qrId]);
-
-  const handleAction = async (action) => {
-    if (!deviceId) {
-      message.error("Device is not identified. Please try again.");
-      return;
+    if (id) {
+      performInitialScan(id);
     }
+  }, [qrId, deviceId, location?.latitude, location?.longitude, router]);
+
+  const handleOverride = async () => {
+    if (!scanLog) return;
+    
+    const oppositeAction = scanLog.action === 'CHECK_IN' ? 'CHECK_OUT' : 'CHECK_IN';
     setActionLoading(true);
+    
     try {
-      await publicScanItem(qrId, deviceId, action, location?.latitude, location?.longitude);
-      setStatus('success');
+      const updatedLog = await updateScanAction(scanLog.id, oppositeAction);
+      setScanLog(updatedLog); // Update the log with the new action
+      setStatus('success'); // Show final success message
     } catch (error) {
-        setErrorMessage(error.message || `Failed to perform action: ${action}`);
-        setStatus('error');
+      setErrorMessage(error.message || `Failed to update scan action.`);
+      setStatus('error');
     } finally {
-        setActionLoading(false);
+      setActionLoading(false);
     }
   };
 
+  const renderStatusTag = (action) => {
+    const color = action === 'CHECK_IN' ? 'green' : 'volcano';
+    return <Tag color={color}>{action.replace('_', ' ')}</Tag>;
+  };
+
   if (status === 'loading') {
-    return <div style={{display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh'}}><Spin size="large" tip="Loading Item..." /></div>;
+    return <div style={{display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh'}}><Spin size="large" tip="Processing Scan..." /></div>;
   }
   
   if (status === 'success') {
-    return <Result status="success" title="Scan Successful!" subTitle="The item status has been updated. You can now close this page." />;
+    return <Result status="success" title="Action Recorded!" subTitle={<>Item status updated to: {renderStatusTag(scanLog.action)}</>} />;
   }
   
   if (status === 'error') {
@@ -92,24 +108,20 @@ const ScanContent = () => {
   return (
     <div style={{ maxWidth: 500, margin: '100px auto' }}>
       <Card loading={actionLoading}>
-        <Title level={3} style={{ textAlign: 'center' }}>{item?.name || 'Scan Item'}</Title>
-        <Text type="secondary" style={{ display: 'block', textAlign: 'center', marginBottom: 24 }}>
-          Item: {item?.name} ({item?.category})
+        <Title level={3} style={{ textAlign: 'center', marginBottom: 4 }}>{item?.name}</Title>
+        <Text type="secondary" style={{ display: 'block', textAlign: 'center' }}>
+          {item?.category}
         </Text>
+        <div style={{ textAlign: 'center', margin: '24px 0' }}>
+            <Paragraph>Scan successful. Current status:</Paragraph>
+            <div style={{transform: 'scale(1.5)', display: 'inline-block'}}>
+                {renderStatusTag(scanLog.action)}
+            </div>
+        </div>
         <Row gutter={[16, 16]}>
           <Col span={24}>
-            <Button type="primary" icon={<EnterOutlined />} block size="large" onClick={() => handleAction('CHECK_IN')}>
-              Check In
-            </Button>
-          </Col>
-          <Col span={24}>
-            <Button type="primary" danger icon={<CheckOutlined />} block size="large" onClick={() => handleAction('CHECK_OUT')}>
-              Check Out
-            </Button>
-          </Col>
-          <Col span={24}>
-            <Button icon={<AuditOutlined />} block size="large" onClick={() => handleAction('AUDIT')}>
-              Audit
+            <Button icon={<SwapOutlined />} block size="large" onClick={handleOverride}>
+              Change to: {scanLog.action === 'CHECK_IN' ? 'Check Out' : 'Check In'}
             </Button>
           </Col>
         </Row>

@@ -254,4 +254,14 @@ export const publicScanItem = async (qr_code_id, device_id, action, latitude, lo
 export const fetchPublicUsers = async () => {
   const endpoint = `${API_ROOT}/auth/users/short-list/`;
   return _callPublicApi(endpoint);
+};
+
+export const updateScanAction = async (scanLogId, newAction) => {
+  return _callPublicApi(`/scan-logs/${scanLogId}/update-action/`, {
+    method: "PATCH",
+    data: { action: newAction },
+    errorPrefix: "updating scan action",
+    showSuccessMessage: true,
+    successMessage: "Scan action updated successfully!"
+  });
 }; 
