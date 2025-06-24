@@ -49,7 +49,7 @@ const ScanContent = () => {
 
       } catch (error) {
         const errorMessage = error.message.toLowerCase();
-        if (errorMessage.includes('device not found') || errorMessage.includes('no user device matches the query')) {
+        if (errorMessage.includes('device not found') || errorMessage.includes('no userdevice matches the given query')) {
           // If device is not registered, redirect to the registration page, passing the QR ID
           router.push(`/register-device?qrId=${qrId}`);
         } else {
@@ -100,7 +100,7 @@ const ScanContent = () => {
 
   const renderStatusTag = (action) => {
     const color = action === 'CHECK_IN' ? 'green' : 'volcano';
-    return <Tag color={color}>{action.replace('_', ' ')}</Tag>;
+    return <Tag color={color}>{action.replace('_', ' ').replace('CHECK','CHECKED')}</Tag>;
   };
 
   if (status === 'loading') {
@@ -131,7 +131,7 @@ const ScanContent = () => {
         <Row gutter={[16, 16]}>
           <Col span={24}>
             <Button icon={<SwapOutlined />} block size="large" onClick={handleOverride}>
-              Change to: {scanLog.action === 'CHECK_IN' ? 'Check Out' : 'Check In'}
+              Change to: {scanLog.action === 'CHECK_IN' ? 'Checked Out' : 'Checked In'}
             </Button>
           </Col>
         </Row>

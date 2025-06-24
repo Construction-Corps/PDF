@@ -4,7 +4,7 @@ import React, { useState, useEffect, Suspense } from 'react';
 import { Form, Input, Button, message, Card, Select } from 'antd';
 import { MobileOutlined, UserOutlined } from '@ant-design/icons';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { getDeviceId, setDeviceId } from '../../utils/deviceId';
+import { getDeviceId } from '../../utils/deviceId';
 import { createInventory, fetchPublicUsers } from '../../utils/InventoryApi';
 
 const { Option } = Select;
@@ -36,9 +36,8 @@ const RegisterContent = () => {
 
     const handleRegister = async (values) => {
         setLoading(true);
-        const deviceIdToRegister = getDeviceId(true); // Force create new if not exists
+        const deviceIdToRegister = getDeviceId(); // This gets existing or creates a new one
         setLocalDeviceId(deviceIdToRegister);
-        setDeviceId(deviceIdToRegister); // Save it to local storage
 
         const payload = {
             device_id: deviceIdToRegister,

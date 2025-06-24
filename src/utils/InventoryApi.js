@@ -252,7 +252,8 @@ export const publicScanItem = async (qr_code_id, device_id, action, latitude, lo
 };
 
 export const fetchPublicUsers = async () => {
-  return _callPublicApi('/auth/users/short-list/');
+  const endpoint = `${API_ROOT}/auth/users/short-list/`;
+  return _callPublicApi(endpoint);
 };
 
 export const updateScanAction = async (scanLogId, newAction) => {
