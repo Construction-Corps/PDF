@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { Button, Drawer, Menu, Divider, Spin } from 'antd';
-import { MenuOutlined, LoginOutlined, LogoutOutlined, UserOutlined } from '@ant-design/icons';
+import { MenuOutlined, LoginOutlined, LogoutOutlined, UserOutlined, AppstoreOutlined } from '@ant-design/icons';
 import Link from 'next/link';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -49,6 +49,33 @@ const Navigation = () => {
               <Link href={item.url}>{item.name}</Link>
             </Menu.Item>
           ))}
+
+          {/* Hardcoded Inventory Menu */}
+          {isAuthenticated && (
+            <Menu.SubMenu key="inventory" title="Inventory" icon={<AppstoreOutlined />}>
+              <Menu.Item key="/inventory/items">
+                <Link href="/inventory/items">Items</Link>
+              </Menu.Item>
+              <Menu.Item key="/inventory/locations">
+                <Link href="/inventory/locations">Locations</Link>
+              </Menu.Item>
+              <Menu.Item key="/inventory/qrcodes">
+                <Link href="/inventory/qrcodes">QR Codes</Link>
+              </Menu.Item>
+              <Menu.Item key="/inventory/scan-logs">
+                <Link href="/inventory/scan-logs">Scan Logs</Link>
+              </Menu.Item>
+              <Menu.Item key="/inventory/user-devices">
+                <Link href="/inventory/user-devices">User Devices</Link>
+              </Menu.Item>
+              <Menu.Item key="/inventory/device-registration-tokens">
+                <Link href="/inventory/device-registration-tokens">Device Tokens</Link>
+              </Menu.Item>
+              <Menu.Item key="/inventory/scan">
+                <Link href="/inventory/scan">Scan Simulator</Link>
+              </Menu.Item>
+            </Menu.SubMenu>
+          )}
         </Menu>
         
         <Divider style={{ margin: '24px 0 16px' }} />

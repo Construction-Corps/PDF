@@ -26,7 +26,13 @@
     "react-dnd-html5-backend": "^16.0.1",
     "react-dom": "^18.2.0",
     "react-infinite-scroll-component": "^6.1.0",
+    "react-qr-code": "^2.0.16",
     "react-toastify": "^11.0.3",
-    "styled-components": "^6.1.15"
+    "styled-components": "^6.1.15",
+    "uuid": "^11.1.0"
+  },
+  "devDependencies": {
+    "eslint": "9.29.0",
+    "eslint-config-next": "15.3.4"
   }
 }
