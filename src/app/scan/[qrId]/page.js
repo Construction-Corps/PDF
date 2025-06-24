@@ -4,8 +4,8 @@ import React, { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { Button, message, Card, Spin, Typography, Result, Row, Col } from 'antd';
 import { CheckOutlined, EnterOutlined, AuditOutlined } from '@ant-design/icons';
-import { getDeviceId } from '../../utils/deviceId';
-import { publicScanItem, fetchInventory } from '../../utils/InventoryApi';
+import { getDeviceId } from '../../../utils/deviceId';
+import { publicScanItem, fetchInventory } from '../../../utils/InventoryApi';
 
 const { Title, Text } = Typography;
 
