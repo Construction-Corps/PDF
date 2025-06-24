@@ -48,9 +48,10 @@ const ScanContent = () => {
         setStatus('ready');
 
       } catch (error) {
-        if (error.message.toLowerCase().includes('device not found')) {
-          // If device is not registered, redirect to the registration page
-          router.push('/register-device');
+        const errorMessage = error.message.toLowerCase();
+        if (errorMessage.includes('device not found') || errorMessage.includes('no user device matches the query')) {
+          // If device is not registered, redirect to the registration page, passing the QR ID
+          router.push(`/register-device?qrId=${qrId}`);
         } else {
           setErrorMessage(error.message || 'An unknown error occurred during the initial scan.');
           setStatus('error');
