@@ -10,9 +10,9 @@ const QRCodeModal = ({ open, onCancel, qrCodeValue, title = 'QR Code', register 
   const finalQrValue = qrCodeValue
     ? (register
         // URL for device registration tokens
-        ? `${window.location.origin}/register-device?token=${qrCodeValue}`
+        ? `https://tools.constructioncorps.com/api/inventory/register-device?token=${qrCodeValue}`
         // URL for public item scanning
-        : `${window.location.origin}/scan?qrId=${qrCodeValue}`)
+        : `https://tools.constructioncorps.com/api/inventory/scan?qrId=${qrCodeValue}`)
     : null;
 
   return (
