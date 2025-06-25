@@ -96,14 +96,38 @@ const LocationsPage = () => {
         />
       );
     }
-    return (
-      <span onClick={() => setEditingCell({ id: record.id, dataIndex })} style={{ cursor: 'pointer' }}>{text || '—'}</span>
-    );
+    return text || '—';
   };
 
   const columns = [
-    { title: 'Name', dataIndex: 'name', key: 'name', render: editableTextRender('name') },
-    { title: 'Description', dataIndex: 'description', key: 'description', render: editableTextRender('description') },
+    { 
+      title: 'Name', 
+      dataIndex: 'name', 
+      key: 'name', 
+      render: editableTextRender('name'),
+      onCell: (record) => ({
+        onClick: () => {
+          if (!editingCell || editingCell.id !== record.id || editingCell.dataIndex !== 'name') {
+            setEditingCell({ id: record.id, dataIndex: 'name' });
+          }
+        },
+        style: { cursor: 'pointer' }
+      })
+    },
+    { 
+      title: 'Description', 
+      dataIndex: 'description', 
+      key: 'description', 
+      render: editableTextRender('description'),
+      onCell: (record) => ({
+        onClick: () => {
+          if (!editingCell || editingCell.id !== record.id || editingCell.dataIndex !== 'description') {
+            setEditingCell({ id: record.id, dataIndex: 'description' });
+          }
+        },
+        style: { cursor: 'pointer' }
+      })
+    },
     {
       title: 'Action',
       key: 'action',

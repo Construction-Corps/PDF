@@ -118,7 +118,7 @@ const UserDevicesPage = () => {
           onPressEnter={(e) => handleCellSave(record, dataIndex, e.target.value)} />
       );
     }
-    return <span style={{cursor:'pointer'}} onClick={() => setEditingCell({id: record.id, dataIndex})}>{text || '—'}</span>;
+    return text || '—';
   };
 
   const editableSelectRender = () => (text, record) => {
@@ -135,11 +135,24 @@ const UserDevicesPage = () => {
         />
       );
     }
-    return <span style={{cursor:'pointer'}} onClick={() => setEditingCell({id: record.id, dataIndex:'user'})}>{text || '—'}</span>;
+    return text || '—';
   };
 
   const columns = [
-    { title: 'Device Name', dataIndex: 'name', key: 'name', render: editableTextRender('name') },
+    { 
+      title: 'Device Name', 
+      dataIndex: 'name', 
+      key: 'name', 
+      render: editableTextRender('name'),
+      onCell: (record) => ({
+        onClick: () => {
+          if (!editingCell || editingCell.id !== record.id || editingCell.dataIndex !== 'name') {
+            setEditingCell({ id: record.id, dataIndex: 'name' });
+          }
+        },
+        style: { cursor: 'pointer' }
+      })
+    },
     { title: 'Device ID', dataIndex: 'device_id', key: 'device_id' },
     { 
       title: 'User',
@@ -147,7 +160,15 @@ const UserDevicesPage = () => {
       render: (_, record) => {
         const display = record.user ? (record.user.first_name || record.user.last_name ? `${record.user.first_name} ${record.user.last_name}`.trim() : record.user.email) : '—';
         return editableSelectRender()(display, record);
-      }
+      },
+      onCell: (record) => ({
+        onClick: () => {
+          if (!editingCell || editingCell.id !== record.id || editingCell.dataIndex !== 'user') {
+            setEditingCell({ id: record.id, dataIndex: 'user' });
+          }
+        },
+        style: { cursor: 'pointer' }
+      })
     },
     { title: 'Registered At', dataIndex: 'registered_at', key: 'registered_at',
       render: (ts) => new Date(ts).toLocaleDateString()

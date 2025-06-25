@@ -126,11 +126,7 @@ const ItemsPage = () => {
         />
       );
     }
-    return (
-      <span onClick={() => setEditingCell({ id: record.id, dataIndex })} style={{ cursor: 'pointer' }}>
-        {text || '—'}
-      </span>
-    );
+    return text || '—';
   };
 
   const editableNumberRender = (dataIndex) => (text, record) => {
@@ -145,11 +141,7 @@ const ItemsPage = () => {
         />
       );
     }
-    return (
-      <span onClick={() => setEditingCell({ id: record.id, dataIndex })} style={{ cursor: 'pointer' }}>
-        {text}
-      </span>
-    );
+    return text;
   };
 
   const editableSelectRender = (dataIndex, optionsArray) => (text, record) => {
@@ -166,11 +158,7 @@ const ItemsPage = () => {
         />
       );
     }
-    return (
-      <span onClick={() => setEditingCell({ id: record.id, dataIndex })} style={{ cursor: 'pointer' }}>
-        {text}
-      </span>
-    );
+    return text;
   };
 
   const openQr = (val) => {
@@ -196,8 +184,28 @@ const ItemsPage = () => {
       message.loading({ content: 'Generating PDF...', key: 'pdf' });
 
       await generatePrintSheet({ items: selectedItems, rows, columns, padding });
-
+      
       message.success({ content: 'PDF generated successfully!', key: 'pdf', duration: 2 });
+      
+      const qrCodesToUpdate = selectedItems
+        .filter(item => item.qr_code && item.qr_code.id && !item.qr_code.is_printed)
+        .map(item => item.qr_code.id);
+
+      if (qrCodesToUpdate.length > 0) {
+        message.loading({ content: `Marking ${qrCodesToUpdate.length} QR code(s) as printed...`, key: 'update_qr' });
+        try {
+            const updatePromises = qrCodesToUpdate.map(qrId => 
+              updateInventory('qrcodes', qrId, { is_printed: true })
+            );
+            await Promise.all(updatePromises);
+            message.success({ content: 'QR codes marked as printed.', key: 'update_qr', duration: 2 });
+            fetchData(); // Refresh data
+        } catch (updateError) {
+            console.error('Failed to update QR code status:', updateError);
+            message.error({ content: 'Failed to mark QR codes as printed.', key: 'update_qr', duration: 2 });
+        }
+      }
+
       setIsPrintModalVisible(false);
       setSelectedRowKeys([]);
 
@@ -217,14 +225,79 @@ const ItemsPage = () => {
   };
 
   const columns = [
-    { title: 'Name', dataIndex: 'name', key: 'name', render: editableTextRender('name') },
-    { title: 'Category', dataIndex: 'category', key: 'category', render: editableTextRender('category') },
-    { title: 'Type', dataIndex: 'item_type', key: 'item_type', render: editableSelectRender('item_type', itemTypes) },
-    { title: 'Condition', dataIndex: 'condition', key: 'condition', render: editableSelectRender('condition', itemConditions) },
-    { title: 'Quantity', dataIndex: 'quantity', key: 'quantity', render: editableNumberRender('quantity') },
+    { 
+      title: 'Name', 
+      dataIndex: 'name', 
+      key: 'name', 
+      render: editableTextRender('name'),
+      onCell: (record) => ({
+        onClick: () => {
+          if (!editingCell || editingCell.id !== record.id || editingCell.dataIndex !== 'name') {
+            setEditingCell({ id: record.id, dataIndex: 'name' });
+          }
+        },
+        style: { cursor: 'pointer' }
+      })
+    },
+    { 
+      title: 'Category', 
+      dataIndex: 'category', 
+      key: 'category', 
+      render: editableTextRender('category'),
+      onCell: (record) => ({
+        onClick: () => {
+          if (!editingCell || editingCell.id !== record.id || editingCell.dataIndex !== 'category') {
+            setEditingCell({ id: record.id, dataIndex: 'category' });
+          }
+        },
+        style: { cursor: 'pointer' }
+      })
+    },
+    { 
+      title: 'Type', 
+      dataIndex: 'item_type', 
+      key: 'item_type', 
+      render: editableSelectRender('item_type', itemTypes),
+      onCell: (record) => ({
+        onClick: () => {
+          if (!editingCell || editingCell.id !== record.id || editingCell.dataIndex !== 'item_type') {
+            setEditingCell({ id: record.id, dataIndex: 'item_type' });
+          }
+        },
+        style: { cursor: 'pointer' }
+      })
+    },
+    { 
+      title: 'Condition', 
+      dataIndex: 'condition', 
+      key: 'condition', 
+      render: editableSelectRender('condition', itemConditions),
+      onCell: (record) => ({
+        onClick: () => {
+          if (!editingCell || editingCell.id !== record.id || editingCell.dataIndex !== 'condition') {
+            setEditingCell({ id: record.id, dataIndex: 'condition' });
+          }
+        },
+        style: { cursor: 'pointer' }
+      })
+    },
+    { 
+      title: 'Quantity', 
+      dataIndex: 'quantity', 
+      key: 'quantity', 
+      render: editableNumberRender('quantity'),
+      onCell: (record) => ({
+        onClick: () => {
+          if (!editingCell || editingCell.id !== record.id || editingCell.dataIndex !== 'quantity') {
+            setEditingCell({ id: record.id, dataIndex: 'quantity' });
+          }
+        },
+        style: { cursor: 'pointer' }
+      })
+    },
     { title: 'Storage Location', dataIndex: ['storage_location', 'name'], key: 'storage_location' },
-    { title: 'Last Known', dataIndex: ['last_known_location', 'location_name'], key: 'last_known_location', render: (name, record) => name || '—' },
-    { title: 'QR Code', dataIndex: 'qr_code', key: 'qr_code', render: (val) => val ? <Button icon={<QrcodeOutlined />} onClick={() => openQr(val)}/> : '—' },
+    { title: 'Last Known', dataIndex: ['last_known_location', 'short_name'], key: 'last_known_location', render: (name, record) => name || '—' },
+    { title: 'QR Code', dataIndex: 'qr_code', key: 'qr_code', render: (qr) => qr && qr.id ? <Button icon={<QrcodeOutlined />} onClick={() => openQr(qr.id)}/> : '—' },
     {
       title: 'Action',
       key: 'action',
