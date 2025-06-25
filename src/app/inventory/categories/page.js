@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Table, Button, Space, Modal, Form, Input, Select, message, TreeSelect } from 'antd';
+import { Table, Button, Space, Modal, Form, Input, Select, message, TreeSelect, Divider } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
 import { fetchInventory, createInventory, updateInventory, deleteInventory } from '../../../utils/InventoryApi';
 import ProtectedRoute from '../../../components/ProtectedRoute';
@@ -15,6 +15,7 @@ const CategoriesPage = () => {
   const [editingCategory, setEditingCategory] = useState(null);
   const [form] = Form.useForm();
   const [editingCell, setEditingCell] = useState(null);
+  const [parentSearchValue, setParentSearchValue] = useState('');
 
   useEffect(() => {
     fetchData();
@@ -41,6 +42,18 @@ const CategoriesPage = () => {
         ? buildCategoryTree(categories.filter(child => child.parent === cat.id))
         : undefined
     })).filter(cat => !categories.find(c => c.id === cat.value)?.parent);
+  };
+
+  const createNewParentCategory = async (name) => {
+    try {
+      const newCategory = await createInventory('categories', { name });
+      setCategories(prev => [...prev, newCategory]);
+      setParentSearchValue('');
+      return newCategory.id;
+    } catch (error) {
+      message.error('Failed to create category');
+      throw error;
+    }
   };
 
   const showModal = (category = null) => {
@@ -143,21 +156,68 @@ const CategoriesPage = () => {
       // Filter out self and descendants to prevent circular dependencies
       const availableParents = categories.filter(cat => {
         if (cat.id === record.id) return false; // Can't be parent of itself
-        // TODO: Add more sophisticated circular dependency checking if needed
-        return true;
+        return cat.name.toLowerCase().includes(parentSearchValue.toLowerCase());
       });
       
       return (
         <Select
           defaultValue={record.parent}
-          style={{ width: 150 }}
-          onBlur={() => setEditingCell(null)}
-          onChange={(value) => handleCellSave(record, 'parent', value)}
-          options={availableParents.map(cat => ({ value: cat.id, label: cat.name }))}
+          style={{ width: 200 }}
+          onBlur={() => {
+            setEditingCell(null);
+            setParentSearchValue('');
+          }}
+          onChange={async (value) => {
+            if (value === 'CREATE_NEW') {
+              try {
+                const newParentId = await createNewParentCategory(parentSearchValue);
+                handleCellSave(record, 'parent', newParentId);
+              } catch (error) {
+                // Error handled in createNewParentCategory
+              }
+            } else {
+              handleCellSave(record, 'parent', value);
+            }
+          }}
+          onSearch={(value) => setParentSearchValue(value)}
+          showSearch
+          filterOption={false}
           allowClear
           autoFocus
           open
-        />
+          dropdownRender={(menu) => (
+            <>
+              {menu}
+              {parentSearchValue && !availableParents.some(cat => cat.name.toLowerCase() === parentSearchValue.toLowerCase()) && (
+                <>
+                  <Divider style={{ margin: '8px 0' }} />
+                  <div
+                    style={{
+                      padding: '8px 12px',
+                      cursor: 'pointer',
+                      color: '#1890ff'
+                    }}
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={async () => {
+                      try {
+                        const newParentId = await createNewParentCategory(parentSearchValue);
+                        handleCellSave(record, 'parent', newParentId);
+                      } catch (error) {
+                        // Error handled in createNewParentCategory
+                      }
+                    }}
+                  >
+                    <PlusOutlined /> Create "{parentSearchValue}"
+                  </div>
+                </>
+              )}
+            </>
+          )}
+        >
+          {availableParents.map(cat => (
+            <Option key={cat.id} value={cat.id}>{cat.name}</Option>
+          ))}
+        </Select>
       );
     }
     return text || '—';

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Table, Button, Space, Modal, Form, Input, Select, message, InputNumber } from 'antd';
+import { Table, Button, Space, Modal, Form, Input, Select, message, InputNumber, Divider } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined, QrcodeOutlined } from '@ant-design/icons';
 import { fetchInventory, createInventory, updateInventory, deleteInventory } from '../../../utils/InventoryApi';
 import ProtectedRoute from '../../../components/ProtectedRoute';
@@ -26,6 +26,8 @@ const ItemsPage = () => {
   const [selectedRowKeys, setSelectedRowKeys] = useState([]);
   const [isPrintModalVisible, setIsPrintModalVisible] = useState(false);
   const [printForm] = Form.useForm();
+  const [categorySearchValue, setCategorySearchValue] = useState('');
+  const [locationSearchValue, setLocationSearchValue] = useState('');
 
   const itemTypes = ['TOOL', 'SUPPLY', 'EQUIPMENT'];
   const itemConditions = ['NEW', 'GOOD', 'FAIR', 'POOR', 'BROKEN'];
@@ -107,16 +109,48 @@ const ItemsPage = () => {
     }
   };
 
+  const createNewCategory = async (name) => {
+    try {
+      const newCategory = await createInventory('categories', { name });
+      setCategories(prev => [...prev, newCategory]);
+      setCategorySearchValue('');
+      return newCategory;
+    } catch (error) {
+      message.error('Failed to create category');
+      throw error;
+    }
+  };
+
+  const createNewLocation = async (name) => {
+    try {
+      const newLocation = await createInventory('locations', { name });
+      setLocations(prev => [...prev, newLocation]);
+      setLocationSearchValue('');
+      return newLocation;
+    } catch (error) {
+      message.error('Failed to create location');
+      throw error;
+    }
+  };
+
   const handleCellSave = async (record, dataIndex, newValue) => {
     setEditingCell(null);
+    setCategorySearchValue('');
+    setLocationSearchValue('');
+    
     if (dataIndex === 'storage_location') {
       if (newValue === record.storage_location?.id) return;
       try {
         await updateInventory('items', record.id, { storage_location: newValue });
         message.success('Item updated');
-        // Update the state with the new location object
-        const newLocation = locations.find(loc => loc.id === newValue);
-        setItems(prev => prev.map(it => it.id === record.id ? { ...it, storage_location: newLocation } : it));
+        // Update the state with the new location object - get fresh state
+        setItems(prev => prev.map(it => {
+          if (it.id === record.id) {
+            const newLocation = locations.find(loc => loc.id === newValue);
+            return { ...it, storage_location: newLocation };
+          }
+          return it;
+        }));
       } catch (error) {
         message.error('Update failed');
       }
@@ -125,9 +159,14 @@ const ItemsPage = () => {
       try {
         await updateInventory('items', record.id, { category_id: newValue });
         message.success('Item updated');
-        // Update the state with the new category object
-        const newCategory = categories.find(cat => cat.id === newValue);
-        setItems(prev => prev.map(it => it.id === record.id ? { ...it, category: newCategory } : it));
+        // Update the state with the new category object - get fresh state  
+        setItems(prev => prev.map(it => {
+          if (it.id === record.id) {
+            const newCategory = categories.find(cat => cat.id === newValue);
+            return { ...it, category: newCategory };
+          }
+          return it;
+        }));
       } catch (error) {
         message.error('Update failed');
       }
@@ -191,17 +230,83 @@ const ItemsPage = () => {
 
   const editableLocationRender = () => (text, record) => {
     if (editingCell && editingCell.id === record.id && editingCell.dataIndex === 'storage_location') {
+      const filteredLocations = locations.filter(loc =>
+        loc.name.toLowerCase().includes(locationSearchValue.toLowerCase())
+      );
+      
       return (
         <Select
           defaultValue={record.storage_location?.id}
-          style={{ width: 150 }}
-          onBlur={() => setEditingCell(null)}
-          onChange={(value) => handleCellSave(record, 'storage_location', value)}
-          options={locations.map(loc => ({ value: loc.id, label: loc.name }))}
+          style={{ width: 200 }}
+          onBlur={() => {
+            setEditingCell(null);
+            setLocationSearchValue('');
+          }}
+          onChange={async (value) => {
+            if (value === 'CREATE_NEW') {
+              try {
+                const newLocation = await createNewLocation(locationSearchValue);
+                // Update the item directly with the new location object
+                setEditingCell(null);
+                setLocationSearchValue('');
+                await updateInventory('items', record.id, { storage_location: newLocation.id });
+                message.success('Item updated');
+                setItems(prev => prev.map(it => 
+                  it.id === record.id ? { ...it, storage_location: newLocation } : it
+                ));
+              } catch (error) {
+                // Error handled in createNewLocation
+              }
+            } else {
+              handleCellSave(record, 'storage_location', value);
+            }
+          }}
+          onSearch={(value) => setLocationSearchValue(value)}
+          showSearch
+          filterOption={false}
           allowClear
           autoFocus
           open
-        />
+          dropdownRender={(menu) => (
+            <>
+              {menu}
+              {locationSearchValue && !filteredLocations.some(loc => loc.name.toLowerCase() === locationSearchValue.toLowerCase()) && (
+                <>
+                  <Divider style={{ margin: '8px 0' }} />
+                  <div
+                    style={{
+                      padding: '8px 12px',
+                      cursor: 'pointer',
+                      color: '#1890ff'
+                    }}
+                    onMouseDown={(e) => e.preventDefault()} // Prevent blur
+                                         onClick={async () => {
+                       try {
+                         const newLocation = await createNewLocation(locationSearchValue);
+                         // Update the item directly with the new location object
+                         setEditingCell(null);
+                         setLocationSearchValue('');
+                         await updateInventory('items', record.id, { storage_location: newLocation.id });
+                         message.success('Item updated');
+                         setItems(prev => prev.map(it => 
+                           it.id === record.id ? { ...it, storage_location: newLocation } : it
+                         ));
+                       } catch (error) {
+                         // Error handled in createNewLocation
+                       }
+                     }}
+                  >
+                    <PlusOutlined /> Create "{locationSearchValue}"
+                  </div>
+                </>
+              )}
+            </>
+          )}
+        >
+          {filteredLocations.map(loc => (
+            <Option key={loc.id} value={loc.id}>{loc.name}</Option>
+          ))}
+        </Select>
       );
     }
     return text || '—';
@@ -209,20 +314,87 @@ const ItemsPage = () => {
 
   const editableCategoryRender = () => (text, record) => {
     if (editingCell && editingCell.id === record.id && editingCell.dataIndex === 'category') {
+      const filteredCategories = categories.filter(cat => {
+        const categoryLabel = cat.parent_name ? `${cat.parent_name} → ${cat.name}` : cat.name;
+        return categoryLabel.toLowerCase().includes(categorySearchValue.toLowerCase()) ||
+               cat.name.toLowerCase().includes(categorySearchValue.toLowerCase());
+      });
+      
       return (
         <Select
           defaultValue={record.category?.id}
-          style={{ width: 150 }}
-          onBlur={() => setEditingCell(null)}
-          onChange={(value) => handleCellSave(record, 'category', value)}
-          options={categories.map(cat => ({ 
-            value: cat.id, 
-            label: cat.parent_name ? `${cat.parent_name} → ${cat.name}` : cat.name 
-          }))}
+          style={{ width: 250 }}
+          onBlur={() => {
+            setEditingCell(null);
+            setCategorySearchValue('');
+          }}
+          onChange={async (value) => {
+            if (value === 'CREATE_NEW') {
+              try {
+                const newCategory = await createNewCategory(categorySearchValue);
+                // Update the item directly with the new category object
+                setEditingCell(null);
+                setCategorySearchValue('');
+                await updateInventory('items', record.id, { category_id: newCategory.id });
+                message.success('Item updated');
+                setItems(prev => prev.map(it => 
+                  it.id === record.id ? { ...it, category: newCategory } : it
+                ));
+              } catch (error) {
+                // Error handled in createNewCategory
+              }
+            } else {
+              handleCellSave(record, 'category', value);
+            }
+          }}
+          onSearch={(value) => setCategorySearchValue(value)}
+          showSearch
+          filterOption={false}
           allowClear
           autoFocus
           open
-        />
+          dropdownRender={(menu) => (
+            <>
+              {menu}
+              {categorySearchValue && !filteredCategories.some(cat => cat.name.toLowerCase() === categorySearchValue.toLowerCase()) && (
+                <>
+                  <Divider style={{ margin: '8px 0' }} />
+                  <div
+                    style={{
+                      padding: '8px 12px',
+                      cursor: 'pointer',
+                      color: '#1890ff'
+                    }}
+                    onMouseDown={(e) => e.preventDefault()} // Prevent blur
+                                         onClick={async () => {
+                       try {
+                         const newCategory = await createNewCategory(categorySearchValue);
+                         // Update the item directly with the new category object
+                         setEditingCell(null);
+                         setCategorySearchValue('');
+                         await updateInventory('items', record.id, { category_id: newCategory.id });
+                         message.success('Item updated');
+                         setItems(prev => prev.map(it => 
+                           it.id === record.id ? { ...it, category: newCategory } : it
+                         ));
+                       } catch (error) {
+                         // Error handled in createNewCategory
+                       }
+                     }}
+                  >
+                    <PlusOutlined /> Create "{categorySearchValue}"
+                  </div>
+                </>
+              )}
+            </>
+          )}
+        >
+          {filteredCategories.map(cat => (
+            <Option key={cat.id} value={cat.id}>
+              {cat.parent_name ? `${cat.parent_name} → ${cat.name}` : cat.name}
+            </Option>
+          ))}
+        </Select>
       );
     }
     return text || '—';
@@ -301,6 +473,20 @@ const ItemsPage = () => {
         onClick: () => {
           if (!editingCell || editingCell.id !== record.id || editingCell.dataIndex !== 'name') {
             setEditingCell({ id: record.id, dataIndex: 'name' });
+          }
+        },
+        style: { cursor: 'pointer' }
+      })
+    },
+    { 
+      title: 'Description', 
+      dataIndex: 'description', 
+      key: 'description', 
+      render: editableTextRender('description'),
+      onCell: (record) => ({
+        onClick: () => {
+          if (!editingCell || editingCell.id !== record.id || editingCell.dataIndex !== 'description') {
+            setEditingCell({ id: record.id, dataIndex: 'description' });
           }
         },
         style: { cursor: 'pointer' }
@@ -435,7 +621,43 @@ const ItemsPage = () => {
               <Input.TextArea />
             </Form.Item>
             <Form.Item name="category_id" label="Category">
-              <Select allowClear placeholder="Select a category">
+              <Select 
+                allowClear 
+                placeholder="Select or create a category"
+                showSearch
+                filterOption={(input, option) => 
+                  option.children.toLowerCase().includes(input.toLowerCase())
+                }
+                onSearch={(value) => setCategorySearchValue(value)}
+                dropdownRender={(menu) => (
+                  <>
+                    {menu}
+                    {categorySearchValue && !categories.some(cat => cat.name.toLowerCase() === categorySearchValue.toLowerCase()) && (
+                      <>
+                        <Divider style={{ margin: '8px 0' }} />
+                        <div
+                          style={{
+                            padding: '8px 12px',
+                            cursor: 'pointer',
+                            color: '#1890ff'
+                          }}
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={async () => {
+                            try {
+                              const newCategory = await createNewCategory(categorySearchValue);
+                              form.setFieldValue('category_id', newCategory.id);
+                            } catch (error) {
+                              // Error handled in createNewCategory
+                            }
+                          }}
+                        >
+                          <PlusOutlined /> Create "{categorySearchValue}"
+                        </div>
+                      </>
+                    )}
+                  </>
+                )}
+              >
                 {categories.map(cat => (
                   <Option key={cat.id} value={cat.id}>
                     {cat.parent_name ? `${cat.parent_name} → ${cat.name}` : cat.name}
@@ -457,7 +679,43 @@ const ItemsPage = () => {
               </Select>
             </Form.Item>
             <Form.Item name="storage_location" label="Storage Location">
-              <Select allowClear>
+              <Select 
+                allowClear
+                placeholder="Select or create a location"
+                showSearch
+                filterOption={(input, option) => 
+                  option.children.toLowerCase().includes(input.toLowerCase())
+                }
+                onSearch={(value) => setLocationSearchValue(value)}
+                dropdownRender={(menu) => (
+                  <>
+                    {menu}
+                    {locationSearchValue && !locations.some(loc => loc.name.toLowerCase() === locationSearchValue.toLowerCase()) && (
+                      <>
+                        <Divider style={{ margin: '8px 0' }} />
+                        <div
+                          style={{
+                            padding: '8px 12px',
+                            cursor: 'pointer',
+                            color: '#1890ff'
+                          }}
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={async () => {
+                            try {
+                              const newLocation = await createNewLocation(locationSearchValue);
+                              form.setFieldValue('storage_location', newLocation.id);
+                            } catch (error) {
+                              // Error handled in createNewLocation
+                            }
+                          }}
+                        >
+                          <PlusOutlined /> Create "{locationSearchValue}"
+                        </div>
+                      </>
+                    )}
+                  </>
+                )}
+              >
                 {locations.map(loc => <Option key={loc.id} value={loc.id}>{loc.name}</Option>)}
               </Select>
             </Form.Item>
