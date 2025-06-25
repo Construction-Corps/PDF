@@ -14,6 +14,7 @@ const { Option } = Select;
 const ItemsPage = () => {
   const [items, setItems] = useState([]);
   const [locations, setLocations] = useState([]);
+  const [categories, setCategories] = useState([]);
   const [qrcodes, setQrcodes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isModalVisible, setIsModalVisible] = useState(false);
@@ -36,13 +37,15 @@ const ItemsPage = () => {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [itemsData, locationsData, qrcodesData] = await Promise.all([
+      const [itemsData, locationsData, categoriesData, qrcodesData] = await Promise.all([
         fetchInventory('items'),
         fetchInventory('locations'),
+        fetchInventory('categories'),
         fetchInventory('qrcodes')
       ]);
       setItems(itemsData);
       setLocations(locationsData);
+      setCategories(categoriesData);
 
       // Filter out QR codes that are already associated with an item
       const assignedQrCodeIds = itemsData.map(item => item.qr_code).filter(Boolean);
@@ -62,6 +65,7 @@ const ItemsPage = () => {
       form.setFieldsValue({
         ...item,
         storage_location: item.storage_location?.id,
+        category_id: item.category?.id,
         qr_code: item.qr_code,
       });
     } else {
@@ -113,6 +117,17 @@ const ItemsPage = () => {
         // Update the state with the new location object
         const newLocation = locations.find(loc => loc.id === newValue);
         setItems(prev => prev.map(it => it.id === record.id ? { ...it, storage_location: newLocation } : it));
+      } catch (error) {
+        message.error('Update failed');
+      }
+    } else if (dataIndex === 'category') {
+      if (newValue === record.category?.id) return;
+      try {
+        await updateInventory('items', record.id, { category_id: newValue });
+        message.success('Item updated');
+        // Update the state with the new category object
+        const newCategory = categories.find(cat => cat.id === newValue);
+        setItems(prev => prev.map(it => it.id === record.id ? { ...it, category: newCategory } : it));
       } catch (error) {
         message.error('Update failed');
       }
@@ -183,6 +198,27 @@ const ItemsPage = () => {
           onBlur={() => setEditingCell(null)}
           onChange={(value) => handleCellSave(record, 'storage_location', value)}
           options={locations.map(loc => ({ value: loc.id, label: loc.name }))}
+          allowClear
+          autoFocus
+          open
+        />
+      );
+    }
+    return text || '—';
+  };
+
+  const editableCategoryRender = () => (text, record) => {
+    if (editingCell && editingCell.id === record.id && editingCell.dataIndex === 'category') {
+      return (
+        <Select
+          defaultValue={record.category?.id}
+          style={{ width: 150 }}
+          onBlur={() => setEditingCell(null)}
+          onChange={(value) => handleCellSave(record, 'category', value)}
+          options={categories.map(cat => ({ 
+            value: cat.id, 
+            label: cat.parent_name ? `${cat.parent_name} → ${cat.name}` : cat.name 
+          }))}
           allowClear
           autoFocus
           open
@@ -272,9 +308,13 @@ const ItemsPage = () => {
     },
     { 
       title: 'Category', 
-      dataIndex: 'category', 
-      key: 'category', 
-      render: editableTextRender('category'),
+      key: 'category',
+      render: (_, record) => {
+        const categoryDisplay = record.category 
+          ? (record.category.parent_name ? `${record.category.parent_name} → ${record.category.name}` : record.category.name)
+          : '—';
+        return editableCategoryRender()(categoryDisplay, record);
+      },
       onCell: (record) => ({
         onClick: () => {
           if (!editingCell || editingCell.id !== record.id || editingCell.dataIndex !== 'category') {
@@ -394,8 +434,14 @@ const ItemsPage = () => {
             <Form.Item name="description" label="Description">
               <Input.TextArea />
             </Form.Item>
-            <Form.Item name="category" label="Category">
-              <Input />
+            <Form.Item name="category_id" label="Category">
+              <Select allowClear placeholder="Select a category">
+                {categories.map(cat => (
+                  <Option key={cat.id} value={cat.id}>
+                    {cat.parent_name ? `${cat.parent_name} → ${cat.name}` : cat.name}
+                  </Option>
+                ))}
+              </Select>
             </Form.Item>
             <Form.Item name="item_type" label="Item Type" rules={[{ required: true }]}>
               <Select>

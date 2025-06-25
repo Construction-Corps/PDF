@@ -56,6 +56,9 @@ const Navigation = () => {
               <Menu.Item key="/inventory/items">
                 <Link href="/inventory/items">Items</Link>
               </Menu.Item>
+              <Menu.Item key="/inventory/categories">
+                <Link href="/inventory/categories">Categories</Link>
+              </Menu.Item>
               <Menu.Item key="/inventory/locations">
                 <Link href="/inventory/locations">Locations</Link>
               </Menu.Item>
