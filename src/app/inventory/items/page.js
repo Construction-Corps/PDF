@@ -3,10 +3,12 @@
 import React, { useState, useEffect } from 'react';
 import { Table, Button, Space, Modal, Form, Input, Select, message, InputNumber, Divider, TreeSelect } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined, QrcodeOutlined } from '@ant-design/icons';
-import { fetchInventory, createInventory, updateInventory, deleteInventory, fetchCategoryTree } from '../../../utils/InventoryApi';
+import { fetchInventory, createInventory, updateInventory, deleteInventory, fetchCategoryTree, generateQRCode } from '../../../utils/InventoryApi';
 import ProtectedRoute from '../../../components/ProtectedRoute';
 import QRCodeModal from '../../../components/QRCodeModal';
 import QRLabel from '../../../components/QRLabel';
+import CategoryModal from '../../../components/CategoryModal';
+import LocationModal from '../../../components/LocationModal';
 import { generatePrintSheet } from '../../../utils/printUtils';
 
 const { Option } = Select;
@@ -22,6 +24,8 @@ const ItemsPage = () => {
   const [editingItem, setEditingItem] = useState(null);
   const [form] = Form.useForm();
   const [editingCell, setEditingCell] = useState(null);
+  const [isAddModalVisible, setIsAddModalVisible] = useState(false);
+  const [addForm] = Form.useForm();
   const [qrModalOpen, setQrModalOpen] = useState(false);
   const [selectedQrValue, setSelectedQrValue] = useState(null);
   const [selectedRowKeys, setSelectedRowKeys] = useState([]);
@@ -33,8 +37,6 @@ const ItemsPage = () => {
   const [isLocationModalVisible, setIsLocationModalVisible] = useState(false);
   const [editingCategory, setEditingCategory] = useState(null);
   const [editingLocation, setEditingLocation] = useState(null);
-  const [categoryForm] = Form.useForm();
-  const [locationForm] = Form.useForm();
 
   const itemTypes = ['TOOL', 'SUPPLY', 'EQUIPMENT'];
   const itemConditions = ['NEW', 'GOOD', 'FAIR', 'POOR', 'BROKEN'];
@@ -77,12 +79,15 @@ const ItemsPage = () => {
         ...item,
         storage_location: item.storage_location?.id,
         category_id: item.category?.id,
-        qr_code: item.qr_code,
+        qr_code_id: item.qr_code?.id,
       });
-    } else {
-      form.resetFields();
+      setIsModalVisible(true);
     }
-    setIsModalVisible(true);
+  };
+
+  const showAddModal = () => {
+    addForm.resetFields();
+    setIsAddModalVisible(true);
   };
 
   const handleCancel = () => {
@@ -94,18 +99,31 @@ const ItemsPage = () => {
   const handleOk = async () => {
     try {
       const values = await form.validateFields();
-      if (editingItem) {
-        await updateInventory('items', editingItem.id, values);
-        message.success('Item updated successfully');
-      } else {
-        await createInventory('items', values);
-        message.success('Item created successfully');
-      }
+      await updateInventory('items', editingItem.id, values);
+      message.success('Item updated successfully');
       handleCancel();
       fetchData();
     } catch (error) {
       message.error('Failed to save item');
     }
+  };
+
+  const handleAddOk = async () => {
+    try {
+      const values = await addForm.validateFields();
+      await createInventory('items', values);
+      message.success('Item created successfully');
+      setIsAddModalVisible(false);
+      addForm.resetFields();
+      fetchData();
+    } catch (error) {
+      message.error('Failed to create item');
+    }
+  };
+
+  const handleAddCancel = () => {
+    setIsAddModalVisible(false);
+    addForm.resetFields();
   };
 
   const handleDelete = async (id) => {
@@ -115,6 +133,19 @@ const ItemsPage = () => {
       fetchData();
     } catch (error) {
       message.error('Failed to delete item');
+    }
+  };
+
+  const handleGenerateQRCode = async (itemId) => {
+    try {
+      const result = await generateQRCode(itemId);
+      // Update the item in state with the new QR code
+      setItems(prev => prev.map(item => 
+        item.id === itemId ? result.item : item
+      ));
+      return result.item;
+    } catch (error) {
+      // Error already handled by the InventoryApi utility
     }
   };
 
@@ -171,93 +202,39 @@ const ItemsPage = () => {
   // Category modal handlers
   const showCategoryModal = (category = null) => {
     setEditingCategory(category);
-    if (category) {
-      categoryForm.setFieldsValue({
-        name: category.name,
-        parent: category.parent
-      });
-    } else {
-      categoryForm.resetFields();
-    }
     setIsCategoryModalVisible(true);
   };
 
-  const handleCategoryModalOk = async () => {
-    try {
-      const values = await categoryForm.validateFields();
-      if (editingCategory) {
-        await updateInventory('categories', editingCategory.id, values);
-        message.success('Category updated successfully');
-      } else {
-        await createInventory('categories', values);
-        message.success('Category created successfully');
-      }
-      setIsCategoryModalVisible(false);
-      setEditingCategory(null);
-      categoryForm.resetFields();
-      
-      // Refresh data
-      const [categoriesData, categoryTreeData] = await Promise.all([
-        fetchInventory('categories'),
-        fetchCategoryTree()
-      ]);
-      setCategories(categoriesData);
-      setCategoryTree(categoryTreeData);
-    } catch (error) {
-      if (error.message.includes('circular dependency')) {
-        message.error('Cannot create circular dependency - a category cannot be its own ancestor');
-      } else {
-        message.error('Failed to save category');
-      }
-    }
+  const handleCategoryModalSuccess = async () => {
+    // Refresh data
+    const [categoriesData, categoryTreeData] = await Promise.all([
+      fetchInventory('categories'),
+      fetchCategoryTree()
+    ]);
+    setCategories(categoriesData);
+    setCategoryTree(categoryTreeData);
   };
 
   const handleCategoryModalCancel = () => {
     setIsCategoryModalVisible(false);
     setEditingCategory(null);
-    categoryForm.resetFields();
   };
 
   // Location modal handlers
   const showLocationModal = (location = null) => {
     setEditingLocation(location);
-    if (location) {
-      locationForm.setFieldsValue({
-        name: location.name,
-        description: location.description
-      });
-    } else {
-      locationForm.resetFields();
-    }
     setIsLocationModalVisible(true);
   };
 
-  const handleLocationModalOk = async () => {
-    try {
-      const values = await locationForm.validateFields();
-      if (editingLocation) {
-        await updateInventory('locations', editingLocation.id, values);
-        message.success('Location updated successfully');
-      } else {
-        await createInventory('locations', values);
-        message.success('Location created successfully');
-      }
-      setIsLocationModalVisible(false);
-      setEditingLocation(null);
-      locationForm.resetFields();
-      
-      // Refresh locations data
-      const locationsData = await fetchInventory('locations');
-      setLocations(locationsData);
-    } catch (error) {
-      message.error('Failed to save location');
-    }
+  const handleLocationModalSuccess = async () => {
+    // Refresh locations data
+    const locationsData = await fetchInventory('locations');
+    setLocations(locationsData);
   };
 
   const handleLocationModalCancel = () => {
     setIsLocationModalVisible(false);
     setEditingLocation(null);
-    locationForm.resetFields();
   };
 
   const handleCellSave = async (record, dataIndex, newValue) => {
@@ -684,7 +661,14 @@ const ItemsPage = () => {
       })
     },
     { title: 'Last Known', dataIndex: ['last_known_location', 'short_name'], key: 'last_known_location', render: (name, record) => name || '—' },
-    { title: 'QR Code', dataIndex: 'qr_code', key: 'qr_code', render: (qr) => qr && qr.id ? <Button icon={<QrcodeOutlined />} onClick={() => openQr(qr.id)}/> : '—' },
+    { title: 'QR Code', dataIndex: 'qr_code', key: 'qr_code', render: (qr, record) => {
+        if (qr && qr.id) {
+          return <Button icon={<QrcodeOutlined />} onClick={() => openQr(qr.id)} />;
+                 } else {
+           return <Button icon={<PlusOutlined />} onClick={() => handleGenerateQRCode(record.id)}>Add</Button>;
+         }
+      }
+    },
     {
       title: 'Action',
       key: 'action',
@@ -703,7 +687,7 @@ const ItemsPage = () => {
         <Button
           type="primary"
           icon={<PlusOutlined />}
-          onClick={() => showModal()}
+          onClick={showAddModal}
           style={{ marginBottom: 16 }}
         >
           Add Item
@@ -724,7 +708,21 @@ const ItemsPage = () => {
           rowKey="id"
         />
         <Modal
-          title={editingItem ? 'Edit Item' : 'Add Item'}
+          title="Add Item"
+          open={isAddModalVisible}
+          onOk={handleAddOk}
+          onCancel={handleAddCancel}
+          destroyOnClose
+        >
+          <Form form={addForm} layout="vertical" name="add_item_form">
+            <Form.Item name="name" label="Item Name" rules={[{ required: true, message: 'Please enter item name' }]}>
+              <Input placeholder="Enter item name" autoFocus />
+            </Form.Item>
+          </Form>
+        </Modal>
+        
+        <Modal
+          title="Edit Item"
           open={isModalVisible}
           onOk={handleOk}
           onCancel={handleCancel}
@@ -870,10 +868,10 @@ const ItemsPage = () => {
                 />
               </Input.Group>
             </Form.Item>
-            <Form.Item name="qr_code" label="QR Code">
+            <Form.Item name="qr_code_id" label="QR Code">
               <Select allowClear>
                 {editingItem && editingItem.qr_code && 
-                  <Option key={editingItem.qr_code} value={editingItem.qr_code}>{editingItem.qr_code}</Option>
+                  <Option key={editingItem.qr_code.id} value={editingItem.qr_code.id}>{editingItem.qr_code.id}</Option>
                 }
                 {qrcodes.map(qr => <Option key={qr.id} value={qr.id}>{qr.id}</Option>)}
               </Select>
@@ -900,47 +898,20 @@ const ItemsPage = () => {
           </Form>
         </Modal>
         
-        {/* Category Edit Modal */}
-        <Modal
-          title={editingCategory ? 'Edit Category' : 'Add Category'}
+        <CategoryModal
           open={isCategoryModalVisible}
-          onOk={handleCategoryModalOk}
           onCancel={handleCategoryModalCancel}
-          destroyOnClose
-        >
-          <Form form={categoryForm} layout="vertical" name="category_form">
-            <Form.Item name="name" label="Name" rules={[{ required: true }]}>
-              <Input placeholder="e.g., Power Tools" />
-            </Form.Item>
-            <Form.Item name="parent" label="Parent Category">
-              <TreeSelect
-                treeData={categoryTree}
-                placeholder="Select parent category (optional)"
-                allowClear
-                showSearch
-                treeDefaultExpandAll
-              />
-            </Form.Item>
-          </Form>
-        </Modal>
+          category={editingCategory}
+          categoryTree={categoryTree}
+          onSuccess={handleCategoryModalSuccess}
+        />
 
-        {/* Location Edit Modal */}
-        <Modal
-          title={editingLocation ? 'Edit Location' : 'Add Location'}
+        <LocationModal
           open={isLocationModalVisible}
-          onOk={handleLocationModalOk}
           onCancel={handleLocationModalCancel}
-          destroyOnClose
-        >
-          <Form form={locationForm} layout="vertical" name="location_form">
-            <Form.Item name="name" label="Name" rules={[{ required: true }]}>
-              <Input placeholder="e.g., Warehouse A" />
-            </Form.Item>
-            <Form.Item name="description" label="Description">
-              <Input.TextArea placeholder="Optional description of the location" />
-            </Form.Item>
-          </Form>
-        </Modal>
+          location={editingLocation}
+          onSuccess={handleLocationModalSuccess}
+        />
         
         <QRCodeModal open={qrModalOpen} onCancel={() => setQrModalOpen(false)} qrCodeValue={selectedQrValue} />
       </div>

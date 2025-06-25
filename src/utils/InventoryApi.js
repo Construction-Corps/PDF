@@ -271,4 +271,14 @@ export const updateScanAction = async (scanLogId, newAction) => {
     showSuccessMessage: true,
     successMessage: "Scan action updated successfully!"
   });
+};
+
+// Generate QR code for an item
+export const generateQRCode = async (itemId) => {
+  return _callInventoryApi(`/items/${itemId}/generate_qr_code/`, {
+    method: 'POST',
+    errorPrefix: 'generating QR code',
+    showSuccessMessage: true,
+    successMessage: 'QR code generated and assigned successfully!'
+  });
 }; 
