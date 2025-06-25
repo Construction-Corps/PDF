@@ -26,15 +26,16 @@ const LocationModal = ({
   const handleOk = async () => {
     try {
       const values = await form.validateFields();
+      let updatedLocation;
       if (location) {
-        await updateInventory('locations', location.id, values);
+        updatedLocation = await updateInventory('locations', location.id, values);
         message.success('Location updated successfully');
       } else {
-        await createInventory('locations', values);
+        updatedLocation = await createInventory('locations', values);
         message.success('Location created successfully');
       }
       form.resetFields();
-      onSuccess && onSuccess();
+      onSuccess && onSuccess(updatedLocation);
       onCancel();
     } catch (error) {
       message.error(`Failed to ${location ? 'update' : 'create'} location`);

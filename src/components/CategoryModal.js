@@ -27,15 +27,16 @@ const CategoryModal = ({
   const handleOk = async () => {
     try {
       const values = await form.validateFields();
+      let updatedCategory;
       if (category) {
-        await updateInventory('categories', category.id, values);
+        updatedCategory = await updateInventory('categories', category.id, values);
         message.success('Category updated successfully');
       } else {
-        await createInventory('categories', values);
+        updatedCategory = await createInventory('categories', values);
         message.success('Category created successfully');
       }
       form.resetFields();
-      onSuccess && onSuccess();
+      onSuccess && onSuccess(updatedCategory);
       onCancel();
     } catch (error) {
       message.error(`Failed to ${category ? 'update' : 'create'} category`);

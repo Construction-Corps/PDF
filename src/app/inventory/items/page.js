@@ -7,8 +7,7 @@ import { fetchInventory, createInventory, updateInventory, deleteInventory, fetc
 import ProtectedRoute from '../../../components/ProtectedRoute';
 import QRCodeModal from '../../../components/QRCodeModal';
 import QRLabel from '../../../components/QRLabel';
-import CategoryModal from '../../../components/CategoryModal';
-import LocationModal from '../../../components/LocationModal';
+import ItemEditModal from '../../../components/ItemEditModal';
 import { generatePrintSheet } from '../../../utils/printUtils';
 
 const { Option } = Select;
@@ -20,9 +19,8 @@ const ItemsPage = () => {
   const [categoryTree, setCategoryTree] = useState([]);
   const [qrcodes, setQrcodes] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [isModalVisible, setIsModalVisible] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
-  const [form] = Form.useForm();
+  const [isEditModalVisible, setIsEditModalVisible] = useState(false);
   const [editingCell, setEditingCell] = useState(null);
   const [isAddModalVisible, setIsAddModalVisible] = useState(false);
   const [addForm] = Form.useForm();
@@ -33,10 +31,6 @@ const ItemsPage = () => {
   const [printForm] = Form.useForm();
   const [categorySearchValue, setCategorySearchValue] = useState('');
   const [locationSearchValue, setLocationSearchValue] = useState('');
-  const [isCategoryModalVisible, setIsCategoryModalVisible] = useState(false);
-  const [isLocationModalVisible, setIsLocationModalVisible] = useState(false);
-  const [editingCategory, setEditingCategory] = useState(null);
-  const [editingLocation, setEditingLocation] = useState(null);
 
   const itemTypes = ['TOOL', 'SUPPLY', 'EQUIPMENT'];
   const itemConditions = ['NEW', 'GOOD', 'FAIR', 'POOR', 'BROKEN'];
@@ -72,17 +66,9 @@ const ItemsPage = () => {
     }
   };
 
-  const showModal = (item = null) => {
+  const showEditModal = (item) => {
     setEditingItem(item);
-    if (item) {
-      form.setFieldsValue({
-        ...item,
-        storage_location: item.storage_location?.id,
-        category_id: item.category?.id,
-        qr_code_id: item.qr_code?.id,
-      });
-      setIsModalVisible(true);
-    }
+    setIsEditModalVisible(true);
   };
 
   const showAddModal = () => {
@@ -90,22 +76,13 @@ const ItemsPage = () => {
     setIsAddModalVisible(true);
   };
 
-  const handleCancel = () => {
-    setIsModalVisible(false);
+  const handleEditModalClose = () => {
+    setIsEditModalVisible(false);
     setEditingItem(null);
-    form.resetFields();
   };
 
-  const handleOk = async () => {
-    try {
-      const values = await form.validateFields();
-      await updateInventory('items', editingItem.id, values);
-      message.success('Item updated successfully');
-      handleCancel();
-      fetchData();
-    } catch (error) {
-      message.error('Failed to save item');
-    }
+  const handleEditModalSuccess = () => {
+    fetchData(); // Refresh the items list
   };
 
   const handleAddOk = async () => {
@@ -199,14 +176,15 @@ const ItemsPage = () => {
     return flattened;
   };
 
-  // Category modal handlers
-  const showCategoryModal = (category = null) => {
-    setEditingCategory(category);
-    setIsCategoryModalVisible(true);
-  };
-
-  const handleCategoryModalSuccess = async () => {
-    // Refresh data
+  // Update callbacks for ItemEditModal
+  const handleCategoriesUpdate = async (newCategory, updatedCategoryTree) => {
+    if (newCategory) {
+      setCategories(prev => [...prev.filter(cat => cat.id !== newCategory.id), newCategory]);
+    }
+    if (updatedCategoryTree) {
+      setCategoryTree(updatedCategoryTree);
+    }
+    // Refresh all data to be safe
     const [categoriesData, categoryTreeData] = await Promise.all([
       fetchInventory('categories'),
       fetchCategoryTree()
@@ -215,26 +193,13 @@ const ItemsPage = () => {
     setCategoryTree(categoryTreeData);
   };
 
-  const handleCategoryModalCancel = () => {
-    setIsCategoryModalVisible(false);
-    setEditingCategory(null);
-  };
-
-  // Location modal handlers
-  const showLocationModal = (location = null) => {
-    setEditingLocation(location);
-    setIsLocationModalVisible(true);
-  };
-
-  const handleLocationModalSuccess = async () => {
+  const handleLocationsUpdate = async (newLocation) => {
+    if (newLocation) {
+      setLocations(prev => [...prev.filter(loc => loc.id !== newLocation.id), newLocation]);
+    }
     // Refresh locations data
     const locationsData = await fetchInventory('locations');
     setLocations(locationsData);
-  };
-
-  const handleLocationModalCancel = () => {
-    setIsLocationModalVisible(false);
-    setEditingLocation(null);
   };
 
   const handleCellSave = async (record, dataIndex, newValue) => {
@@ -245,7 +210,7 @@ const ItemsPage = () => {
     if (dataIndex === 'storage_location') {
       if (newValue === record.storage_location?.id) return;
       try {
-        await updateInventory('items', record.id, { storage_location: newValue });
+        await updateInventory('items', record.id, { storage_location_id: newValue });
         message.success('Item updated');
         // Update the state with the new location object - get fresh state
         setItems(prev => prev.map(it => {
@@ -353,7 +318,7 @@ const ItemsPage = () => {
                 // Update the item directly with the new location object
                 setEditingCell(null);
                 setLocationSearchValue('');
-                await updateInventory('items', record.id, { storage_location: newLocation.id });
+                await updateInventory('items', record.id, { storage_location_id: newLocation.id });
                 message.success('Item updated');
                 setItems(prev => prev.map(it => 
                   it.id === record.id ? { ...it, storage_location: newLocation } : it
@@ -390,7 +355,7 @@ const ItemsPage = () => {
                          // Update the item directly with the new location object
                          setEditingCell(null);
                          setLocationSearchValue('');
-                         await updateInventory('items', record.id, { storage_location: newLocation.id });
+                         await updateInventory('items', record.id, { storage_location_id: newLocation.id });
                          message.success('Item updated');
                          setItems(prev => prev.map(it => 
                            it.id === record.id ? { ...it, storage_location: newLocation } : it
@@ -674,7 +639,7 @@ const ItemsPage = () => {
       key: 'action',
       render: (_, record) => (
         <Space size="middle">
-          <Button icon={<EditOutlined />} onClick={() => showModal(record)}>Edit</Button>
+          <Button icon={<EditOutlined />} onClick={() => showEditModal(record)}>Edit</Button>
           <Button icon={<DeleteOutlined />} danger onClick={() => handleDelete(record.id)}>Delete</Button>
         </Space>
       ),
@@ -721,163 +686,20 @@ const ItemsPage = () => {
           </Form>
         </Modal>
         
-        <Modal
-          title="Edit Item"
-          open={isModalVisible}
-          onOk={handleOk}
-          onCancel={handleCancel}
-          destroyOnClose
-        >
-          <Form form={form} layout="vertical" name="item_form">
-            <Form.Item name="name" label="Name" rules={[{ required: true }]}>
-              <Input />
-            </Form.Item>
-            <Form.Item name="description" label="Description">
-              <Input.TextArea />
-            </Form.Item>
-            <Form.Item name="category_id" label="Category">
-              <Input.Group compact>
-                <TreeSelect
-                  treeData={categoryTree}
-                  placeholder="Select or create a category"
-                  allowClear
-                  showSearch
-                  treeDefaultExpandAll
-                  style={{ width: 'calc(100% - 32px)' }}
-                  filterTreeNode={(input, node) =>
-                    node.title.toLowerCase().includes(input.toLowerCase())
-                  }
-                  onSearch={(value) => setCategorySearchValue(value)}
-                  dropdownRender={(menu) => (
-                    <>
-                      {menu}
-                      {categorySearchValue && !categories.some(cat => cat.name.toLowerCase() === categorySearchValue.toLowerCase()) && (
-                        <>
-                          <Divider style={{ margin: '8px 0' }} />
-                          <div
-                            style={{
-                              padding: '8px 12px',
-                              cursor: 'pointer',
-                              color: '#1890ff'
-                            }}
-                            onMouseDown={(e) => e.preventDefault()}
-                            onClick={async () => {
-                              try {
-                                const newCategory = await createNewCategory(categorySearchValue);
-                                form.setFieldValue('category_id', newCategory.id);
-                              } catch (error) {
-                                // Error handled in createNewCategory
-                              }
-                            }}
-                          >
-                            <PlusOutlined /> Create "{categorySearchValue}"
-                          </div>
-                        </>
-                      )}
-                    </>
-                  )}
-                />
-                <Button 
-                  icon={<EditOutlined />}
-                  onClick={() => {
-                    const currentCategoryId = form.getFieldValue('category_id');
-                    if (currentCategoryId) {
-                      // Edit existing category
-                      const currentCategory = categories.find(cat => cat.id === currentCategoryId);
-                      showCategoryModal(currentCategory);
-                    } else {
-                      // Add new category
-                      showCategoryModal(null);
-                    }
-                  }}
-                  style={{ width: '32px' }}
-                  title={form.getFieldValue('category_id') ? "Edit Selected Category" : "Add New Category"}
-                />
-              </Input.Group>
-            </Form.Item>
-            <Form.Item name="item_type" label="Item Type" rules={[{ required: true }]}>
-              <Select>
-                {itemTypes.map(type => <Option key={type} value={type}>{type}</Option>)}
-              </Select>
-            </Form.Item>
-            <Form.Item name="quantity" label="Quantity" rules={[{ required: true }]}>
-              <Input type="number" />
-            </Form.Item>
-            <Form.Item name="condition" label="Condition" rules={[{ required: true }]}>
-              <Select>
-                {itemConditions.map(cond => <Option key={cond} value={cond}>{cond}</Option>)}
-              </Select>
-            </Form.Item>
-            <Form.Item name="storage_location" label="Storage Location">
-              <Input.Group compact>
-                <Select 
-                  allowClear
-                  placeholder="Select or create a location"
-                  showSearch
-                  style={{ width: 'calc(100% - 32px)' }}
-                  filterOption={(input, option) => 
-                    option.children.toLowerCase().includes(input.toLowerCase())
-                  }
-                  onSearch={(value) => setLocationSearchValue(value)}
-                  dropdownRender={(menu) => (
-                    <>
-                      {menu}
-                      {locationSearchValue && !locations.some(loc => loc.name.toLowerCase() === locationSearchValue.toLowerCase()) && (
-                        <>
-                          <Divider style={{ margin: '8px 0' }} />
-                          <div
-                            style={{
-                              padding: '8px 12px',
-                              cursor: 'pointer',
-                              color: '#1890ff'
-                            }}
-                            onMouseDown={(e) => e.preventDefault()}
-                            onClick={async () => {
-                              try {
-                                const newLocation = await createNewLocation(locationSearchValue);
-                                form.setFieldValue('storage_location', newLocation.id);
-                              } catch (error) {
-                                // Error handled in createNewLocation
-                              }
-                            }}
-                          >
-                            <PlusOutlined /> Create "{locationSearchValue}"
-                          </div>
-                        </>
-                      )}
-                    </>
-                  )}
-                >
-                  {locations.map(loc => <Option key={loc.id} value={loc.id}>{loc.name}</Option>)}
-                </Select>
-                <Button 
-                  icon={<EditOutlined />}
-                  onClick={() => {
-                    const currentLocationId = form.getFieldValue('storage_location');
-                    if (currentLocationId) {
-                      // Edit existing location
-                      const currentLocation = locations.find(loc => loc.id === currentLocationId);
-                      showLocationModal(currentLocation);
-                    } else {
-                      // Add new location
-                      showLocationModal(null);
-                    }
-                  }}
-                  style={{ width: '32px' }}
-                  title={form.getFieldValue('storage_location') ? "Edit Selected Location" : "Add New Location"}
-                />
-              </Input.Group>
-            </Form.Item>
-            <Form.Item name="qr_code_id" label="QR Code">
-              <Select allowClear>
-                {editingItem && editingItem.qr_code && 
-                  <Option key={editingItem.qr_code.id} value={editingItem.qr_code.id}>{editingItem.qr_code.id}</Option>
-                }
-                {qrcodes.map(qr => <Option key={qr.id} value={qr.id}>{qr.id}</Option>)}
-              </Select>
-            </Form.Item>
-          </Form>
-        </Modal>
+        <ItemEditModal
+          open={isEditModalVisible}
+          onCancel={handleEditModalClose}
+          onSuccess={handleEditModalSuccess}
+          item={editingItem}
+          categories={categories}
+          categoryTree={categoryTree}
+          locations={locations}
+          qrcodes={qrcodes}
+          itemTypes={itemTypes}
+          itemConditions={itemConditions}
+          onCategoriesUpdate={handleCategoriesUpdate}
+          onLocationsUpdate={handleLocationsUpdate}
+        />
         <Modal
           title="Configure Print Sheet"
           open={isPrintModalVisible}
@@ -897,21 +719,7 @@ const ItemsPage = () => {
             </Form.Item>
           </Form>
         </Modal>
-        
-        <CategoryModal
-          open={isCategoryModalVisible}
-          onCancel={handleCategoryModalCancel}
-          category={editingCategory}
-          categoryTree={categoryTree}
-          onSuccess={handleCategoryModalSuccess}
-        />
 
-        <LocationModal
-          open={isLocationModalVisible}
-          onCancel={handleLocationModalCancel}
-          location={editingLocation}
-          onSuccess={handleLocationModalSuccess}
-        />
         
         <QRCodeModal open={qrModalOpen} onCancel={() => setQrModalOpen(false)} qrCodeValue={selectedQrValue} />
       </div>
