@@ -1,11 +1,13 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Table, Button, Space, Modal, Form, Input, Select, message } from 'antd';
+import { Table, Button, Space, Modal, Form, Input, Select, message, InputNumber } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined, QrcodeOutlined } from '@ant-design/icons';
 import { fetchInventory, createInventory, updateInventory, deleteInventory } from '../../../utils/InventoryApi';
 import ProtectedRoute from '../../../components/ProtectedRoute';
 import QRCodeModal from '../../../components/QRCodeModal';
+import QRLabel from '../../../components/QRLabel';
+import { generatePrintSheet } from '../../../utils/printUtils';
 
 const { Option } = Select;
 
@@ -20,6 +22,9 @@ const ItemsPage = () => {
   const [editingCell, setEditingCell] = useState(null);
   const [qrModalOpen, setQrModalOpen] = useState(false);
   const [selectedQrValue, setSelectedQrValue] = useState(null);
+  const [selectedRowKeys, setSelectedRowKeys] = useState([]);
+  const [isPrintModalVisible, setIsPrintModalVisible] = useState(false);
+  const [printForm] = Form.useForm();
 
   const itemTypes = ['TOOL', 'SUPPLY', 'EQUIPMENT'];
   const itemConditions = ['NEW', 'GOOD', 'FAIR', 'POOR', 'BROKEN'];
@@ -173,6 +178,44 @@ const ItemsPage = () => {
     setQrModalOpen(true);
   };
 
+  const showPrintModal = () => {
+    printForm.setFieldsValue({ rows: 3, columns: 3, padding: 0.0 });
+    setIsPrintModalVisible(true);
+  };
+
+  const handlePrintModalCancel = () => {
+    setIsPrintModalVisible(false);
+  };
+
+  const handlePrint = async () => {
+    try {
+      const values = await printForm.validateFields();
+      const { rows, columns, padding } = values;
+      const selectedItems = items.filter(item => selectedRowKeys.includes(item.id));
+      
+      message.loading({ content: 'Generating PDF...', key: 'pdf' });
+
+      await generatePrintSheet({ items: selectedItems, rows, columns, padding });
+
+      message.success({ content: 'PDF generated successfully!', key: 'pdf', duration: 2 });
+      setIsPrintModalVisible(false);
+      setSelectedRowKeys([]);
+
+    } catch (error) {
+      console.error('Failed to generate PDF:', error);
+      message.error({ content: 'Failed to generate PDF', key: 'pdf', duration: 2 });
+    }
+  };
+
+  const onSelectChange = (newSelectedRowKeys) => {
+    setSelectedRowKeys(newSelectedRowKeys);
+  };
+
+  const rowSelection = {
+    selectedRowKeys,
+    onChange: onSelectChange,
+  };
+
   const columns = [
     { title: 'Name', dataIndex: 'name', key: 'name', render: editableTextRender('name') },
     { title: 'Category', dataIndex: 'category', key: 'category', render: editableTextRender('category') },
@@ -205,7 +248,16 @@ const ItemsPage = () => {
         >
           Add Item
         </Button>
+        <Button
+          type="primary"
+          onClick={showPrintModal}
+          disabled={!selectedRowKeys.length}
+          style={{ marginLeft: 8 }}
+        >
+          Generate Print Sheet ({selectedRowKeys.length})
+        </Button>
         <Table
+          rowSelection={rowSelection}
           columns={columns}
           dataSource={items}
           loading={loading}
@@ -253,6 +305,25 @@ const ItemsPage = () => {
                 }
                 {qrcodes.map(qr => <Option key={qr.id} value={qr.id}>{qr.id}</Option>)}
               </Select>
+            </Form.Item>
+          </Form>
+        </Modal>
+        <Modal
+          title="Configure Print Sheet"
+          open={isPrintModalVisible}
+          onOk={handlePrint}
+          onCancel={handlePrintModalCancel}
+          okText="Generate PDF"
+        >
+          <Form form={printForm} layout="vertical" name="print_form">
+            <Form.Item name="rows" label="Rows per page" rules={[{ required: true }]}>
+              <InputNumber min={1} max={10} style={{ width: '100%' }} />
+            </Form.Item>
+            <Form.Item name="columns" label="Columns per page" rules={[{ required: true }]}>
+              <InputNumber min={1} max={10} style={{ width: '100%' }} />
+            </Form.Item>
+            <Form.Item name="padding" label="Page Padding (inches)" rules={[{ required: true }]}>
+              <InputNumber min={0} max={2} step={0.1} style={{ width: '100%' }} />
             </Form.Item>
           </Form>
         </Modal>
