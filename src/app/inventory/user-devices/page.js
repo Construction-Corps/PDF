@@ -210,7 +210,7 @@ const UserDevicesPage = () => {
             <Form.Item name="user" label="User" rules={[{ required: true }]}>
               <Select>
                 {/* HACK: no users endpoint, so this will be empty unless the above fetch works */}
-                {users.map(u => <Option key={u.id} value={u.id}>{u.username}</Option>)}
+                {users.map(u => <Option key={u.id} value={u.id}>{u.first_name || u.last_name ? `${u.first_name} ${u.last_name}`.trim() : u.email}</Option>)}
               </Select>
             </Form.Item>
             <Form.Item label="Device ID">

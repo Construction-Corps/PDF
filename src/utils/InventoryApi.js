@@ -176,6 +176,13 @@ export const fetchInventory = async (resource, id = '') => {
   });
 };
 
+// Fetch category tree structure
+export const fetchCategoryTree = async () => {
+  return _callInventoryApi('/categories/tree/', {
+    errorPrefix: 'fetching category tree'
+  });
+};
+
 // Generic create function
 export const createInventory = async (resource, data) => {
   return _callInventoryApi(`/${resource}/`, {

@@ -1,9 +1,9 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Table, Button, Space, Modal, Form, Input, Select, message, InputNumber, Divider } from 'antd';
+import { Table, Button, Space, Modal, Form, Input, Select, message, InputNumber, Divider, TreeSelect } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined, QrcodeOutlined } from '@ant-design/icons';
-import { fetchInventory, createInventory, updateInventory, deleteInventory } from '../../../utils/InventoryApi';
+import { fetchInventory, createInventory, updateInventory, deleteInventory, fetchCategoryTree } from '../../../utils/InventoryApi';
 import ProtectedRoute from '../../../components/ProtectedRoute';
 import QRCodeModal from '../../../components/QRCodeModal';
 import QRLabel from '../../../components/QRLabel';
@@ -15,6 +15,7 @@ const ItemsPage = () => {
   const [items, setItems] = useState([]);
   const [locations, setLocations] = useState([]);
   const [categories, setCategories] = useState([]);
+  const [categoryTree, setCategoryTree] = useState([]);
   const [qrcodes, setQrcodes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isModalVisible, setIsModalVisible] = useState(false);
@@ -28,6 +29,12 @@ const ItemsPage = () => {
   const [printForm] = Form.useForm();
   const [categorySearchValue, setCategorySearchValue] = useState('');
   const [locationSearchValue, setLocationSearchValue] = useState('');
+  const [isCategoryModalVisible, setIsCategoryModalVisible] = useState(false);
+  const [isLocationModalVisible, setIsLocationModalVisible] = useState(false);
+  const [editingCategory, setEditingCategory] = useState(null);
+  const [editingLocation, setEditingLocation] = useState(null);
+  const [categoryForm] = Form.useForm();
+  const [locationForm] = Form.useForm();
 
   const itemTypes = ['TOOL', 'SUPPLY', 'EQUIPMENT'];
   const itemConditions = ['NEW', 'GOOD', 'FAIR', 'POOR', 'BROKEN'];
@@ -39,15 +46,17 @@ const ItemsPage = () => {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [itemsData, locationsData, categoriesData, qrcodesData] = await Promise.all([
+      const [itemsData, locationsData, categoriesData, categoryTreeData, qrcodesData] = await Promise.all([
         fetchInventory('items'),
         fetchInventory('locations'),
         fetchInventory('categories'),
+        fetchCategoryTree(),
         fetchInventory('qrcodes')
       ]);
       setItems(itemsData);
       setLocations(locationsData);
       setCategories(categoriesData);
+      setCategoryTree(categoryTreeData);
 
       // Filter out QR codes that are already associated with an item
       const assignedQrCodeIds = itemsData.map(item => item.qr_code).filter(Boolean);
@@ -113,6 +122,9 @@ const ItemsPage = () => {
     try {
       const newCategory = await createInventory('categories', { name });
       setCategories(prev => [...prev, newCategory]);
+      // Refresh category tree to include the new category
+      const updatedCategoryTree = await fetchCategoryTree();
+      setCategoryTree(updatedCategoryTree);
       setCategorySearchValue('');
       return newCategory;
     } catch (error) {
@@ -131,6 +143,121 @@ const ItemsPage = () => {
       message.error('Failed to create location');
       throw error;
     }
+  };
+
+  // Helper function to get category display path
+  const getCategoryDisplayPath = (categoryId) => {
+    if (!categoryId || !categories.length) return '—';
+    const category = categories.find(cat => cat.id === categoryId);
+    if (!category) return '—';
+    return category.parent_name ? `${category.parent_name} → ${category.name}` : category.name;
+  };
+
+  // Helper function to flatten tree data for search
+  const flattenTreeData = (treeData) => {
+    const flattened = [];
+    const flatten = (nodes) => {
+      nodes.forEach(node => {
+        flattened.push(node);
+        if (node.children) {
+          flatten(node.children);
+        }
+      });
+    };
+    flatten(treeData);
+    return flattened;
+  };
+
+  // Category modal handlers
+  const showCategoryModal = (category = null) => {
+    setEditingCategory(category);
+    if (category) {
+      categoryForm.setFieldsValue({
+        name: category.name,
+        parent: category.parent
+      });
+    } else {
+      categoryForm.resetFields();
+    }
+    setIsCategoryModalVisible(true);
+  };
+
+  const handleCategoryModalOk = async () => {
+    try {
+      const values = await categoryForm.validateFields();
+      if (editingCategory) {
+        await updateInventory('categories', editingCategory.id, values);
+        message.success('Category updated successfully');
+      } else {
+        await createInventory('categories', values);
+        message.success('Category created successfully');
+      }
+      setIsCategoryModalVisible(false);
+      setEditingCategory(null);
+      categoryForm.resetFields();
+      
+      // Refresh data
+      const [categoriesData, categoryTreeData] = await Promise.all([
+        fetchInventory('categories'),
+        fetchCategoryTree()
+      ]);
+      setCategories(categoriesData);
+      setCategoryTree(categoryTreeData);
+    } catch (error) {
+      if (error.message.includes('circular dependency')) {
+        message.error('Cannot create circular dependency - a category cannot be its own ancestor');
+      } else {
+        message.error('Failed to save category');
+      }
+    }
+  };
+
+  const handleCategoryModalCancel = () => {
+    setIsCategoryModalVisible(false);
+    setEditingCategory(null);
+    categoryForm.resetFields();
+  };
+
+  // Location modal handlers
+  const showLocationModal = (location = null) => {
+    setEditingLocation(location);
+    if (location) {
+      locationForm.setFieldsValue({
+        name: location.name,
+        description: location.description
+      });
+    } else {
+      locationForm.resetFields();
+    }
+    setIsLocationModalVisible(true);
+  };
+
+  const handleLocationModalOk = async () => {
+    try {
+      const values = await locationForm.validateFields();
+      if (editingLocation) {
+        await updateInventory('locations', editingLocation.id, values);
+        message.success('Location updated successfully');
+      } else {
+        await createInventory('locations', values);
+        message.success('Location created successfully');
+      }
+      setIsLocationModalVisible(false);
+      setEditingLocation(null);
+      locationForm.resetFields();
+      
+      // Refresh locations data
+      const locationsData = await fetchInventory('locations');
+      setLocations(locationsData);
+    } catch (error) {
+      message.error('Failed to save location');
+    }
+  };
+
+  const handleLocationModalCancel = () => {
+    setIsLocationModalVisible(false);
+    setEditingLocation(null);
+    locationForm.resetFields();
   };
 
   const handleCellSave = async (record, dataIndex, newValue) => {
@@ -312,18 +439,13 @@ const ItemsPage = () => {
     return text || '—';
   };
 
-  const editableCategoryRender = () => (text, record) => {
+    const editableCategoryRender = () => (text, record) => {
     if (editingCell && editingCell.id === record.id && editingCell.dataIndex === 'category') {
-      const filteredCategories = categories.filter(cat => {
-        const categoryLabel = cat.parent_name ? `${cat.parent_name} → ${cat.name}` : cat.name;
-        return categoryLabel.toLowerCase().includes(categorySearchValue.toLowerCase()) ||
-               cat.name.toLowerCase().includes(categorySearchValue.toLowerCase());
-      });
-      
       return (
-        <Select
-          defaultValue={record.category?.id}
-          style={{ width: 250 }}
+        <TreeSelect
+          treeData={categoryTree}
+          value={record.category?.id}
+          style={{ width: 300 }}
           onBlur={() => {
             setEditingCell(null);
             setCategorySearchValue('');
@@ -349,14 +471,17 @@ const ItemsPage = () => {
           }}
           onSearch={(value) => setCategorySearchValue(value)}
           showSearch
-          filterOption={false}
+          filterTreeNode={(input, node) =>
+            node.title.toLowerCase().includes(input.toLowerCase())
+          }
           allowClear
           autoFocus
           open
+          treeDefaultExpandAll
           dropdownRender={(menu) => (
             <>
               {menu}
-              {categorySearchValue && !filteredCategories.some(cat => cat.name.toLowerCase() === categorySearchValue.toLowerCase()) && (
+              {categorySearchValue && !categories.some(cat => cat.name.toLowerCase() === categorySearchValue.toLowerCase()) && (
                 <>
                   <Divider style={{ margin: '8px 0' }} />
                   <div
@@ -366,21 +491,21 @@ const ItemsPage = () => {
                       color: '#1890ff'
                     }}
                     onMouseDown={(e) => e.preventDefault()} // Prevent blur
-                                         onClick={async () => {
-                       try {
-                         const newCategory = await createNewCategory(categorySearchValue);
-                         // Update the item directly with the new category object
-                         setEditingCell(null);
-                         setCategorySearchValue('');
-                         await updateInventory('items', record.id, { category_id: newCategory.id });
-                         message.success('Item updated');
-                         setItems(prev => prev.map(it => 
-                           it.id === record.id ? { ...it, category: newCategory } : it
-                         ));
-                       } catch (error) {
-                         // Error handled in createNewCategory
-                       }
-                     }}
+                    onClick={async () => {
+                      try {
+                        const newCategory = await createNewCategory(categorySearchValue);
+                        // Update the item directly with the new category object
+                        setEditingCell(null);
+                        setCategorySearchValue('');
+                        await updateInventory('items', record.id, { category_id: newCategory.id });
+                        message.success('Item updated');
+                        setItems(prev => prev.map(it => 
+                          it.id === record.id ? { ...it, category: newCategory } : it
+                        ));
+                      } catch (error) {
+                        // Error handled in createNewCategory
+                      }
+                    }}
                   >
                     <PlusOutlined /> Create "{categorySearchValue}"
                   </div>
@@ -388,13 +513,7 @@ const ItemsPage = () => {
               )}
             </>
           )}
-        >
-          {filteredCategories.map(cat => (
-            <Option key={cat.id} value={cat.id}>
-              {cat.parent_name ? `${cat.parent_name} → ${cat.name}` : cat.name}
-            </Option>
-          ))}
-        </Select>
+        />
       );
     }
     return text || '—';
@@ -496,9 +615,7 @@ const ItemsPage = () => {
       title: 'Category', 
       key: 'category',
       render: (_, record) => {
-        const categoryDisplay = record.category 
-          ? (record.category.parent_name ? `${record.category.parent_name} → ${record.category.name}` : record.category.name)
-          : '—';
+        const categoryDisplay = getCategoryDisplayPath(record.category?.id);
         return editableCategoryRender()(categoryDisplay, record);
       },
       onCell: (record) => ({
@@ -621,49 +738,64 @@ const ItemsPage = () => {
               <Input.TextArea />
             </Form.Item>
             <Form.Item name="category_id" label="Category">
-              <Select 
-                allowClear 
-                placeholder="Select or create a category"
-                showSearch
-                filterOption={(input, option) => 
-                  option.children.toLowerCase().includes(input.toLowerCase())
-                }
-                onSearch={(value) => setCategorySearchValue(value)}
-                dropdownRender={(menu) => (
-                  <>
-                    {menu}
-                    {categorySearchValue && !categories.some(cat => cat.name.toLowerCase() === categorySearchValue.toLowerCase()) && (
-                      <>
-                        <Divider style={{ margin: '8px 0' }} />
-                        <div
-                          style={{
-                            padding: '8px 12px',
-                            cursor: 'pointer',
-                            color: '#1890ff'
-                          }}
-                          onMouseDown={(e) => e.preventDefault()}
-                          onClick={async () => {
-                            try {
-                              const newCategory = await createNewCategory(categorySearchValue);
-                              form.setFieldValue('category_id', newCategory.id);
-                            } catch (error) {
-                              // Error handled in createNewCategory
-                            }
-                          }}
-                        >
-                          <PlusOutlined /> Create "{categorySearchValue}"
-                        </div>
-                      </>
-                    )}
-                  </>
-                )}
-              >
-                {categories.map(cat => (
-                  <Option key={cat.id} value={cat.id}>
-                    {cat.parent_name ? `${cat.parent_name} → ${cat.name}` : cat.name}
-                  </Option>
-                ))}
-              </Select>
+              <Input.Group compact>
+                <TreeSelect
+                  treeData={categoryTree}
+                  placeholder="Select or create a category"
+                  allowClear
+                  showSearch
+                  treeDefaultExpandAll
+                  style={{ width: 'calc(100% - 32px)' }}
+                  filterTreeNode={(input, node) =>
+                    node.title.toLowerCase().includes(input.toLowerCase())
+                  }
+                  onSearch={(value) => setCategorySearchValue(value)}
+                  dropdownRender={(menu) => (
+                    <>
+                      {menu}
+                      {categorySearchValue && !categories.some(cat => cat.name.toLowerCase() === categorySearchValue.toLowerCase()) && (
+                        <>
+                          <Divider style={{ margin: '8px 0' }} />
+                          <div
+                            style={{
+                              padding: '8px 12px',
+                              cursor: 'pointer',
+                              color: '#1890ff'
+                            }}
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={async () => {
+                              try {
+                                const newCategory = await createNewCategory(categorySearchValue);
+                                form.setFieldValue('category_id', newCategory.id);
+                              } catch (error) {
+                                // Error handled in createNewCategory
+                              }
+                            }}
+                          >
+                            <PlusOutlined /> Create "{categorySearchValue}"
+                          </div>
+                        </>
+                      )}
+                    </>
+                  )}
+                />
+                <Button 
+                  icon={<EditOutlined />}
+                  onClick={() => {
+                    const currentCategoryId = form.getFieldValue('category_id');
+                    if (currentCategoryId) {
+                      // Edit existing category
+                      const currentCategory = categories.find(cat => cat.id === currentCategoryId);
+                      showCategoryModal(currentCategory);
+                    } else {
+                      // Add new category
+                      showCategoryModal(null);
+                    }
+                  }}
+                  style={{ width: '32px' }}
+                  title={form.getFieldValue('category_id') ? "Edit Selected Category" : "Add New Category"}
+                />
+              </Input.Group>
             </Form.Item>
             <Form.Item name="item_type" label="Item Type" rules={[{ required: true }]}>
               <Select>
@@ -679,45 +811,64 @@ const ItemsPage = () => {
               </Select>
             </Form.Item>
             <Form.Item name="storage_location" label="Storage Location">
-              <Select 
-                allowClear
-                placeholder="Select or create a location"
-                showSearch
-                filterOption={(input, option) => 
-                  option.children.toLowerCase().includes(input.toLowerCase())
-                }
-                onSearch={(value) => setLocationSearchValue(value)}
-                dropdownRender={(menu) => (
-                  <>
-                    {menu}
-                    {locationSearchValue && !locations.some(loc => loc.name.toLowerCase() === locationSearchValue.toLowerCase()) && (
-                      <>
-                        <Divider style={{ margin: '8px 0' }} />
-                        <div
-                          style={{
-                            padding: '8px 12px',
-                            cursor: 'pointer',
-                            color: '#1890ff'
-                          }}
-                          onMouseDown={(e) => e.preventDefault()}
-                          onClick={async () => {
-                            try {
-                              const newLocation = await createNewLocation(locationSearchValue);
-                              form.setFieldValue('storage_location', newLocation.id);
-                            } catch (error) {
-                              // Error handled in createNewLocation
-                            }
-                          }}
-                        >
-                          <PlusOutlined /> Create "{locationSearchValue}"
-                        </div>
-                      </>
-                    )}
-                  </>
-                )}
-              >
-                {locations.map(loc => <Option key={loc.id} value={loc.id}>{loc.name}</Option>)}
-              </Select>
+              <Input.Group compact>
+                <Select 
+                  allowClear
+                  placeholder="Select or create a location"
+                  showSearch
+                  style={{ width: 'calc(100% - 32px)' }}
+                  filterOption={(input, option) => 
+                    option.children.toLowerCase().includes(input.toLowerCase())
+                  }
+                  onSearch={(value) => setLocationSearchValue(value)}
+                  dropdownRender={(menu) => (
+                    <>
+                      {menu}
+                      {locationSearchValue && !locations.some(loc => loc.name.toLowerCase() === locationSearchValue.toLowerCase()) && (
+                        <>
+                          <Divider style={{ margin: '8px 0' }} />
+                          <div
+                            style={{
+                              padding: '8px 12px',
+                              cursor: 'pointer',
+                              color: '#1890ff'
+                            }}
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={async () => {
+                              try {
+                                const newLocation = await createNewLocation(locationSearchValue);
+                                form.setFieldValue('storage_location', newLocation.id);
+                              } catch (error) {
+                                // Error handled in createNewLocation
+                              }
+                            }}
+                          >
+                            <PlusOutlined /> Create "{locationSearchValue}"
+                          </div>
+                        </>
+                      )}
+                    </>
+                  )}
+                >
+                  {locations.map(loc => <Option key={loc.id} value={loc.id}>{loc.name}</Option>)}
+                </Select>
+                <Button 
+                  icon={<EditOutlined />}
+                  onClick={() => {
+                    const currentLocationId = form.getFieldValue('storage_location');
+                    if (currentLocationId) {
+                      // Edit existing location
+                      const currentLocation = locations.find(loc => loc.id === currentLocationId);
+                      showLocationModal(currentLocation);
+                    } else {
+                      // Add new location
+                      showLocationModal(null);
+                    }
+                  }}
+                  style={{ width: '32px' }}
+                  title={form.getFieldValue('storage_location') ? "Edit Selected Location" : "Add New Location"}
+                />
+              </Input.Group>
             </Form.Item>
             <Form.Item name="qr_code" label="QR Code">
               <Select allowClear>
@@ -748,6 +899,49 @@ const ItemsPage = () => {
             </Form.Item>
           </Form>
         </Modal>
+        
+        {/* Category Edit Modal */}
+        <Modal
+          title={editingCategory ? 'Edit Category' : 'Add Category'}
+          open={isCategoryModalVisible}
+          onOk={handleCategoryModalOk}
+          onCancel={handleCategoryModalCancel}
+          destroyOnClose
+        >
+          <Form form={categoryForm} layout="vertical" name="category_form">
+            <Form.Item name="name" label="Name" rules={[{ required: true }]}>
+              <Input placeholder="e.g., Power Tools" />
+            </Form.Item>
+            <Form.Item name="parent" label="Parent Category">
+              <TreeSelect
+                treeData={categoryTree}
+                placeholder="Select parent category (optional)"
+                allowClear
+                showSearch
+                treeDefaultExpandAll
+              />
+            </Form.Item>
+          </Form>
+        </Modal>
+
+        {/* Location Edit Modal */}
+        <Modal
+          title={editingLocation ? 'Edit Location' : 'Add Location'}
+          open={isLocationModalVisible}
+          onOk={handleLocationModalOk}
+          onCancel={handleLocationModalCancel}
+          destroyOnClose
+        >
+          <Form form={locationForm} layout="vertical" name="location_form">
+            <Form.Item name="name" label="Name" rules={[{ required: true }]}>
+              <Input placeholder="e.g., Warehouse A" />
+            </Form.Item>
+            <Form.Item name="description" label="Description">
+              <Input.TextArea placeholder="Optional description of the location" />
+            </Form.Item>
+          </Form>
+        </Modal>
+        
         <QRCodeModal open={qrModalOpen} onCancel={() => setQrModalOpen(false)} qrCodeValue={selectedQrValue} />
       </div>
     </ProtectedRoute>
