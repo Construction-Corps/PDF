@@ -74,7 +74,7 @@ const QrCodesPage = () => {
       key: 'id',
       render: (id) => (
         <Space>
-          <span>{id}</span>
+          {/* <span>{id}</span> */}
           <Button icon={<QrcodeOutlined />} onClick={() => showQrModal(id)} />
         </Space>
       )

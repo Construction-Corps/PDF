@@ -1,20 +1,46 @@
-import React from 'react';
-import { Modal } from 'antd';
-import dynamic from 'next/dynamic';
-
-// Dynamically load react-qr-code only on client side
-const QRCode = dynamic(() => import('react-qr-code').then(mod => mod.default), { ssr: false });
+import React, { useEffect, useRef } from 'react';
+import { Button, Modal } from 'antd';
+import QRCode from 'qrcode';
+import { CopyOutlined } from '@ant-design/icons';
 
 const QRCodeModal = ({ open, onCancel, qrCodeValue, title = 'QR Code', register = false }) => {
+  const canvasRef = useRef(null);
   const baseUrl = 'https://tools.constructioncorps.com';
-  // Conditionally construct the full URL for the QR code
+
   const finalQrValue = qrCodeValue
     ? (register
-        // URL for device registration tokens
         ? `${baseUrl}/register-device?token=${qrCodeValue}`
-        // URL for public item scanning
         : `${baseUrl}/scan?qrId=${qrCodeValue}`)
     : null;
+
+  useEffect(() => {
+    if (finalQrValue && canvasRef.current) {
+      const canvas = canvasRef.current;
+      const context = canvas.getContext('2d');
+      
+      QRCode.toCanvas(canvas, finalQrValue, { width: 180, margin: 2 }, (error) => {
+        if (error) console.error(error);
+
+        // Center cutout for logo
+        const logoSize = 45;
+        const x = (canvas.width - logoSize) / 2;
+        const y = (canvas.height - logoSize) / 2;
+        context.fillStyle = 'white';
+        context.fillRect(x, y, logoSize, logoSize);
+
+        // Draw logo
+        const logo = new Image();
+        logo.src = '/images/cc-logo.webp';
+        logo.onload = () => {
+          const logoDisplayWidth = 40;
+          const logoDisplayHeight = (logo.height / logo.width) * logoDisplayWidth;
+          const logoX = (canvas.width - logoDisplayWidth) / 2;
+          const logoY = (canvas.height - logoDisplayHeight) / 2;
+          context.drawImage(logo, logoX, logoY, logoDisplayWidth, logoDisplayHeight);
+        };
+      });
+    }
+  }, [finalQrValue]);
 
   return (
     <Modal
@@ -27,9 +53,11 @@ const QRCodeModal = ({ open, onCancel, qrCodeValue, title = 'QR Code', register 
       {finalQrValue && (
         <div style={{ textAlign: 'center', padding: '20px' }}>
           <p>Scan this code</p>
-          <div style={{ background: 'white', padding: '16px', display: 'inline-block' }}>
-            <QRCode value={finalQrValue} size={180} />
+          <div style={{ background: 'white', paddingTop: '16px', paddingRight: '16px', paddingLeft: '16px', display: 'inline-block' }}>
+            <canvas ref={canvasRef} />
           </div>
+          <p style={{ marginTop: 0 }}>Property of Construction Corps</p>
+          <Button type="link" icon={<CopyOutlined />} onClick={() => navigator.clipboard.writeText(finalQrValue)}>Copy</Button>
           <h3 style={{ marginTop: 16, wordBreak: 'break-all' }}>{finalQrValue}</h3>
         </div>
       )}

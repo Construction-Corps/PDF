@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Table, Button, Space, Modal, Form, Input, Select, message } from 'antd';
-import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
+import { PlusOutlined, EditOutlined, DeleteOutlined, QrcodeOutlined } from '@ant-design/icons';
 import { fetchInventory, createInventory, updateInventory, deleteInventory } from '../../../utils/InventoryApi';
 import ProtectedRoute from '../../../components/ProtectedRoute';
 import QRCodeModal from '../../../components/QRCodeModal';
@@ -181,7 +181,7 @@ const ItemsPage = () => {
     { title: 'Quantity', dataIndex: 'quantity', key: 'quantity', render: editableNumberRender('quantity') },
     { title: 'Storage Location', dataIndex: ['storage_location', 'name'], key: 'storage_location' },
     { title: 'Last Known', dataIndex: ['last_known_location', 'location_name'], key: 'last_known_location', render: (name, record) => name || '—' },
-    { title: 'QR Code', dataIndex: 'qr_code', key: 'qr_code', render: (val) => val ? <Button type="link" onClick={() => openQr(val)}>{val}</Button> : '—' },
+    { title: 'QR Code', dataIndex: 'qr_code', key: 'qr_code', render: (val) => val ? <Button icon={<QrcodeOutlined />} onClick={() => openQr(val)}/> : '—' },
     {
       title: 'Action',
       key: 'action',
