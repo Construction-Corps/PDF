@@ -1,16 +1,16 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Table, Button, Space, Modal, Form, Input, Select, message, TreeSelect, Divider } from 'antd';
+import { Button, Space, Modal, Form, Input, Select, message, TreeSelect, Divider } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
 import { fetchInventory, createInventory, updateInventory, deleteInventory } from '../../../utils/InventoryApi';
 import ProtectedRoute from '../../../components/ProtectedRoute';
+import InventoryTable from '../../../components/InventoryTable';
 
 const { Option } = Select;
 
 const CategoriesPage = () => {
   const [categories, setCategories] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [editingCategory, setEditingCategory] = useState(null);
   const [form] = Form.useForm();
@@ -18,18 +18,15 @@ const CategoriesPage = () => {
   const [parentSearchValue, setParentSearchValue] = useState('');
 
   useEffect(() => {
-    fetchData();
+    fetchSupportingData();
   }, []);
 
-  const fetchData = async () => {
-    setLoading(true);
+  const fetchSupportingData = async () => {
     try {
       const categoriesData = await fetchInventory('categories');
       setCategories(categoriesData);
     } catch (error) {
       message.error('Failed to fetch categories');
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -79,14 +76,18 @@ const CategoriesPage = () => {
     try {
       const values = await form.validateFields();
       if (editingCategory) {
-        await updateInventory('categories', editingCategory.id, values);
+        const updatedCategory = await updateInventory('categories', editingCategory.id, values);
         message.success('Category updated successfully');
+        setCategories(prev => prev.map(cat => 
+          cat.id === editingCategory.id ? updatedCategory : cat
+        ));
       } else {
-        await createInventory('categories', values);
+        const newCategory = await createInventory('categories', values);
         message.success('Category created successfully');
+        setCategories(prev => [...prev, newCategory]);
       }
       handleCancel();
-      fetchData();
+      fetchSupportingData();
     } catch (error) {
       if (error.message.includes('circular dependency')) {
         message.error('Cannot create circular dependency - a category cannot be its own ancestor');
@@ -100,7 +101,8 @@ const CategoriesPage = () => {
     try {
       await deleteInventory('categories', id);
       message.success('Category deleted successfully');
-      fetchData();
+      setCategories(prev => prev.filter(cat => cat.id !== id));
+      fetchSupportingData();
     } catch (error) {
       if (error.message.includes('referenced')) {
         message.error('Cannot delete category - it is being used by items or has subcategories');
@@ -115,9 +117,10 @@ const CategoriesPage = () => {
     if (dataIndex === 'parent') {
       if (newValue === record.parent) return;
       try {
-        await updateInventory('categories', record.id, { parent: newValue });
+        const updatedCategory = await updateInventory('categories', record.id, { parent: newValue });
         message.success('Category updated');
-        fetchData(); // Refresh to get updated parent_name
+        setCategories(prev => prev.map(cat => cat.id === record.id ? updatedCategory : cat));
+        fetchSupportingData(); // Refresh to get updated parent_name
       } catch (error) {
         if (error.message.includes('circular dependency')) {
           message.error('Cannot create circular dependency - a category cannot be its own ancestor');
@@ -128,9 +131,9 @@ const CategoriesPage = () => {
     } else {
       if (newValue === record[dataIndex]) return;
       try {
-        await updateInventory('categories', record.id, { [dataIndex]: newValue });
+        const updatedCategory = await updateInventory('categories', record.id, { [dataIndex]: newValue });
         message.success('Category updated');
-        setCategories(prev => prev.map(cat => cat.id === record.id ? { ...cat, [dataIndex]: newValue } : cat));
+        setCategories(prev => prev.map(cat => cat.id === record.id ? updatedCategory : cat));
       } catch (error) {
         message.error('Update failed');
       }
@@ -199,12 +202,12 @@ const CategoriesPage = () => {
                     }}
                     onMouseDown={(e) => e.preventDefault()}
                     onClick={async () => {
-                      try {
-                        const newParentId = await createNewParentCategory(parentSearchValue);
-                        handleCellSave(record, 'parent', newParentId);
-                      } catch (error) {
-                        // Error handled in createNewParentCategory
-                      }
+                                              try {
+                          const newParentId = await createNewParentCategory(parentSearchValue);
+                          handleCellSave(record, 'parent', newParentId);
+                        } catch (error) {
+                          // Error handled in createNewParentCategory
+                        }
                     }}
                   >
                     <PlusOutlined /> Create "{parentSearchValue}"
@@ -227,7 +230,8 @@ const CategoriesPage = () => {
     { 
       title: 'Name', 
       dataIndex: 'name', 
-      key: 'name', 
+      key: 'name',
+      sorter: true,
       render: editableTextRender('name'),
       onCell: (record) => ({
         onClick: () => {
@@ -242,6 +246,10 @@ const CategoriesPage = () => {
       title: 'Parent Category', 
       dataIndex: 'parent_name', 
       key: 'parent_name',
+      sorter: true,
+      filters: categories
+        .filter(cat => categories.some(child => child.parent === cat.id))
+        .map(cat => ({ text: cat.name, value: cat.id })),
       render: editableParentRender(),
       onCell: (record) => ({
         onClick: () => {
@@ -256,7 +264,8 @@ const CategoriesPage = () => {
       title: 'ID', 
       dataIndex: 'id', 
       key: 'id',
-      width: 80
+      width: 80,
+      sorter: true
     },
     {
       title: 'Action',
@@ -270,26 +279,54 @@ const CategoriesPage = () => {
     },
   ];
 
+  const extraFilters = [
+    {
+      key: 'parent__isnull',
+      label: 'Category Type',
+      type: 'select',
+      options: [
+        { value: 'true', label: 'Root Categories (No Parent)' },
+        { value: 'false', label: 'Sub Categories (Has Parent)' }
+      ]
+    },
+    {
+      key: 'parent',
+      label: 'Parent Category',
+      type: 'select',
+      options: categories
+        .filter(cat => categories.some(child => child.parent === cat.id))
+        .map(cat => ({ value: cat.id, label: cat.name }))
+    }
+  ];
+
+  const additionalActions = [
+    <Button
+      key="add"
+      type="primary"
+      icon={<PlusOutlined />}
+      onClick={() => showModal()}
+    >
+      Add Category
+    </Button>
+  ];
+
   const categoryTreeData = buildCategoryTree(categories);
 
   return (
     <ProtectedRoute>
       <div style={{ padding: '50px' }}>
-        <h2>Categories</h2>
-        <Button
-          type="primary"
-          icon={<PlusOutlined />}
-          onClick={() => showModal()}
-          style={{ marginBottom: 16 }}
-        >
-          Add Category
-        </Button>
-        <Table
+        <h1>Categories</h1>
+        
+        <InventoryTable
+          resource="categories"
           columns={columns}
-          dataSource={categories}
-          loading={loading}
-          rowKey="id"
+          searchPlaceholder="Search categories by name, parent category..."
+          extraFilters={extraFilters}
+          additionalActions={additionalActions}
+          data={categories}
         />
+
+        {/* Add/Edit Category Modal */}
         <Modal
           title={editingCategory ? 'Edit Category' : 'Add Category'}
           open={isModalVisible}

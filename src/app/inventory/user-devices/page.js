@@ -178,8 +178,8 @@ const UserDevicesPage = () => {
       key: 'action',
       render: (_, record) => (
         <Space size="middle">
-          <Button icon={<EditOutlined />} onClick={() => showModal(record)}>Edit</Button>
-          <Button icon={<DeleteOutlined />} danger onClick={() => handleDelete(record.id)}>Delete</Button>
+          <Button icon={<EditOutlined />} onClick={() => showModal(record)}/>
+          <Button icon={<DeleteOutlined />} danger onClick={() => handleDelete(record.id)}/>
         </Space>
       ),
     },

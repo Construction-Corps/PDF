@@ -1,32 +1,29 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Table, Button, Space, Modal, Form, Input, message } from 'antd';
+import { Button, Space, Modal, Form, Input, message } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
 import { fetchInventory, createInventory, updateInventory, deleteInventory } from '../../../utils/InventoryApi';
 import ProtectedRoute from '../../../components/ProtectedRoute';
+import InventoryTable from '../../../components/InventoryTable';
 
 const LocationsPage = () => {
   const [locations, setLocations] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [editingLocation, setEditingLocation] = useState(null);
   const [form] = Form.useForm();
   const [editingCell, setEditingCell] = useState(null);
 
   useEffect(() => {
-    fetchData();
+    fetchSupportingData();
   }, []);
 
-  const fetchData = async () => {
-    setLoading(true);
+  const fetchSupportingData = async () => {
     try {
       const data = await fetchInventory('locations');
       setLocations(data);
     } catch (error) {
       message.error('Failed to fetch locations');
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -50,14 +47,18 @@ const LocationsPage = () => {
     try {
       const values = await form.validateFields();
       if (editingLocation) {
-        await updateInventory('locations', editingLocation.id, values);
+        const updatedLocation = await updateInventory('locations', editingLocation.id, values);
         message.success('Location updated successfully');
+        setLocations(prev => prev.map(loc => 
+          loc.id === editingLocation.id ? updatedLocation : loc
+        ));
       } else {
-        await createInventory('locations', values);
+        const newLocation = await createInventory('locations', values);
         message.success('Location created successfully');
+        setLocations(prev => [...prev, newLocation]);
       }
       handleCancel();
-      fetchData();
+      fetchSupportingData();
     } catch (error) {
       message.error('Failed to save location');
     }
@@ -67,7 +68,8 @@ const LocationsPage = () => {
     try {
       await deleteInventory('locations', id);
       message.success('Location deleted successfully');
-      fetchData();
+      setLocations(prev => prev.filter(loc => loc.id !== id));
+      fetchSupportingData();
     } catch (error) {
       message.error('Failed to delete location');
     }
@@ -77,9 +79,9 @@ const LocationsPage = () => {
     setEditingCell(null);
     if (newValue === record[dataIndex]) return;
     try {
-      await updateInventory('locations', record.id, { [dataIndex]: newValue });
+      const updatedLocation = await updateInventory('locations', record.id, { [dataIndex]: newValue });
       message.success('Location updated');
-      setLocations(prev => prev.map(l => l.id === record.id ? { ...l, [dataIndex]: newValue } : l));
+      setLocations(prev => prev.map(l => l.id === record.id ? updatedLocation : l));
     } catch (error) {
       message.error('Update failed');
     }
@@ -103,7 +105,8 @@ const LocationsPage = () => {
     { 
       title: 'Name', 
       dataIndex: 'name', 
-      key: 'name', 
+      key: 'name',
+      sorter: true,
       render: editableTextRender('name'),
       onCell: (record) => ({
         onClick: () => {
@@ -117,7 +120,7 @@ const LocationsPage = () => {
     { 
       title: 'Description', 
       dataIndex: 'description', 
-      key: 'description', 
+      key: 'description',
       render: editableTextRender('description'),
       onCell: (record) => ({
         onClick: () => {
@@ -133,30 +136,38 @@ const LocationsPage = () => {
       key: 'action',
       render: (_, record) => (
         <Space size="middle">
-          <Button icon={<EditOutlined />} onClick={() => showModal(record)}>Edit</Button>
-          <Button icon={<DeleteOutlined />} danger onClick={() => handleDelete(record.id)}>Delete</Button>
+          <Button icon={<EditOutlined />} onClick={() => showModal(record)}/>
+          <Button icon={<DeleteOutlined />} danger onClick={() => handleDelete(record.id)}/>
         </Space>
       ),
     },
   ];
 
+  const additionalActions = [
+    <Button
+      key="add"
+      type="primary"
+      icon={<PlusOutlined />}
+      onClick={() => showModal()}
+    >
+      Add Location
+    </Button>
+  ];
+
   return (
     <ProtectedRoute>
       <div style={{ padding: '50px' }}>
-        <Button
-          type="primary"
-          icon={<PlusOutlined />}
-          onClick={() => showModal()}
-          style={{ marginBottom: 16 }}
-        >
-          Add Location
-        </Button>
-        <Table
+        <h1>Storage Locations</h1>
+        
+        <InventoryTable
+          resource="locations"
           columns={columns}
-          dataSource={locations}
-          loading={loading}
-          rowKey="id"
+          searchPlaceholder="Search locations by name, description..."
+          additionalActions={additionalActions}
+          data={locations}
         />
+
+        {/* Add/Edit Location Modal */}
         <Modal
           title={editingLocation ? 'Edit Location' : 'Add Location'}
           open={isModalVisible}

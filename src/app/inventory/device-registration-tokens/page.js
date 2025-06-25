@@ -101,9 +101,7 @@ const DeviceRegistrationTokensPage = () => {
       title: 'Action',
       key: 'action',
       render: (_, record) => (
-        <Button icon={<DeleteOutlined />} danger onClick={() => handleDelete(record.id)}>
-          Delete
-        </Button>
+        <Button icon={<DeleteOutlined />} danger onClick={() => handleDelete(record.id)}/>
       ),
     },
   ];

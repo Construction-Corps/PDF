@@ -1,13 +1,13 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Table, Button, Space, Modal, Form, Input, Select, message, InputNumber, Divider, TreeSelect } from 'antd';
+import { Button, Space, Modal, Form, Input, Select, message, InputNumber, Divider, TreeSelect } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined, QrcodeOutlined } from '@ant-design/icons';
 import { fetchInventory, createInventory, updateInventory, deleteInventory, fetchCategoryTree, generateQRCode } from '../../../utils/InventoryApi';
 import ProtectedRoute from '../../../components/ProtectedRoute';
 import QRCodeModal from '../../../components/QRCodeModal';
-import QRLabel from '../../../components/QRLabel';
 import ItemEditModal from '../../../components/ItemEditModal';
+import InventoryTable from '../../../components/InventoryTable';
 import { generatePrintSheet } from '../../../utils/printUtils';
 
 const { Option } = Select;
@@ -18,7 +18,6 @@ const ItemsPage = () => {
   const [categories, setCategories] = useState([]);
   const [categoryTree, setCategoryTree] = useState([]);
   const [qrcodes, setQrcodes] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [editingItem, setEditingItem] = useState(null);
   const [isEditModalVisible, setIsEditModalVisible] = useState(false);
   const [editingCell, setEditingCell] = useState(null);
@@ -36,33 +35,33 @@ const ItemsPage = () => {
   const itemConditions = ['NEW', 'GOOD', 'FAIR', 'POOR', 'BROKEN'];
 
   useEffect(() => {
-    fetchData();
+    fetchSupportingData();
+    fetchItemsData();
   }, []);
 
-  const fetchData = async () => {
-    setLoading(true);
+  const fetchItemsData = async () => {
     try {
-      const [itemsData, locationsData, categoriesData, categoryTreeData, qrcodesData] = await Promise.all([
-        fetchInventory('items'),
+      const itemsData = await fetchInventory('items');
+      setItems(itemsData);
+    } catch (error) {
+      message.error('Failed to fetch items');
+    }
+  };
+
+  const fetchSupportingData = async () => {
+    try {
+      const [locationsData, categoriesData, categoryTreeData, qrcodesData] = await Promise.all([
         fetchInventory('locations'),
         fetchInventory('categories'),
         fetchCategoryTree(),
         fetchInventory('qrcodes')
       ]);
-      setItems(itemsData);
       setLocations(locationsData);
       setCategories(categoriesData);
       setCategoryTree(categoryTreeData);
-
-      // Filter out QR codes that are already associated with an item
-      const assignedQrCodeIds = itemsData.map(item => item.qr_code).filter(Boolean);
-      const availableQrcodes = qrcodesData.filter(qr => !assignedQrCodeIds.includes(qr.id));
-      setQrcodes(availableQrcodes);
-
+      setQrcodes(qrcodesData);
     } catch (error) {
-      message.error('Failed to fetch data');
-    } finally {
-      setLoading(false);
+      message.error('Failed to fetch supporting data');
     }
   };
 
@@ -82,17 +81,17 @@ const ItemsPage = () => {
   };
 
   const handleEditModalSuccess = () => {
-    fetchData(); // Refresh the items list
+    // Refresh will be handled by the InventoryTable component
   };
 
-  const handleAddOk = async () => {
+    const handleAddOk = async () => {
     try {
       const values = await addForm.validateFields();
-      await createInventory('items', values);
+      const newItem = await createInventory('items', values);
       message.success('Item created successfully');
       setIsAddModalVisible(false);
       addForm.resetFields();
-      fetchData();
+      setItems(prev => [...prev, newItem]);
     } catch (error) {
       message.error('Failed to create item');
     }
@@ -107,7 +106,7 @@ const ItemsPage = () => {
     try {
       await deleteInventory('items', id);
       message.success('Item deleted successfully');
-      fetchData();
+      setItems(prev => prev.filter(item => item.id !== id));
     } catch (error) {
       message.error('Failed to delete item');
     }
@@ -116,7 +115,7 @@ const ItemsPage = () => {
   const handleGenerateQRCode = async (itemId) => {
     try {
       const result = await generateQRCode(itemId);
-      // Update the item in state with the new QR code
+      message.success('QR code generated successfully');
       setItems(prev => prev.map(item => 
         item.id === itemId ? result.item : item
       ));
@@ -130,7 +129,6 @@ const ItemsPage = () => {
     try {
       const newCategory = await createInventory('categories', { name });
       setCategories(prev => [...prev, newCategory]);
-      // Refresh category tree to include the new category
       const updatedCategoryTree = await fetchCategoryTree();
       setCategoryTree(updatedCategoryTree);
       setCategorySearchValue('');
@@ -153,7 +151,6 @@ const ItemsPage = () => {
     }
   };
 
-  // Helper function to get category display path
   const getCategoryDisplayPath = (categoryId) => {
     if (!categoryId || !categories.length) return '—';
     const category = categories.find(cat => cat.id === categoryId);
@@ -161,22 +158,6 @@ const ItemsPage = () => {
     return category.parent_name ? `${category.parent_name} → ${category.name}` : category.name;
   };
 
-  // Helper function to flatten tree data for search
-  const flattenTreeData = (treeData) => {
-    const flattened = [];
-    const flatten = (nodes) => {
-      nodes.forEach(node => {
-        flattened.push(node);
-        if (node.children) {
-          flatten(node.children);
-        }
-      });
-    };
-    flatten(treeData);
-    return flattened;
-  };
-
-  // Update callbacks for ItemEditModal
   const handleCategoriesUpdate = async (newCategory, updatedCategoryTree) => {
     if (newCategory) {
       setCategories(prev => [...prev.filter(cat => cat.id !== newCategory.id), newCategory]);
@@ -184,7 +165,6 @@ const ItemsPage = () => {
     if (updatedCategoryTree) {
       setCategoryTree(updatedCategoryTree);
     }
-    // Refresh all data to be safe
     const [categoriesData, categoryTreeData] = await Promise.all([
       fetchInventory('categories'),
       fetchCategoryTree()
@@ -197,7 +177,6 @@ const ItemsPage = () => {
     if (newLocation) {
       setLocations(prev => [...prev.filter(loc => loc.id !== newLocation.id), newLocation]);
     }
-    // Refresh locations data
     const locationsData = await fetchInventory('locations');
     setLocations(locationsData);
   };
@@ -210,41 +189,33 @@ const ItemsPage = () => {
     if (dataIndex === 'storage_location') {
       if (newValue === record.storage_location?.id) return;
       try {
-        await updateInventory('items', record.id, { storage_location_id: newValue });
+        const updatedItem = await updateInventory('items', record.id, { storage_location_id: newValue });
         message.success('Item updated');
-        // Update the state with the new location object - get fresh state
-        setItems(prev => prev.map(it => {
-          if (it.id === record.id) {
-            const newLocation = locations.find(loc => loc.id === newValue);
-            return { ...it, storage_location: newLocation };
-          }
-          return it;
-        }));
+        setItems(prev => prev.map(item => 
+          item.id === record.id ? updatedItem : item
+        ));
       } catch (error) {
         message.error('Update failed');
       }
     } else if (dataIndex === 'category') {
       if (newValue === record.category?.id) return;
       try {
-        await updateInventory('items', record.id, { category_id: newValue });
+        const updatedItem = await updateInventory('items', record.id, { category_id: newValue });
         message.success('Item updated');
-        // Update the state with the new category object - get fresh state  
-        setItems(prev => prev.map(it => {
-          if (it.id === record.id) {
-            const newCategory = categories.find(cat => cat.id === newValue);
-            return { ...it, category: newCategory };
-          }
-          return it;
-        }));
+        setItems(prev => prev.map(item => 
+          item.id === record.id ? updatedItem : item
+        ));
       } catch (error) {
         message.error('Update failed');
       }
     } else {
       if (newValue === record[dataIndex]) return;
       try {
-        await updateInventory('items', record.id, { [dataIndex]: newValue });
+        const updatedItem = await updateInventory('items', record.id, { [dataIndex]: newValue });
         message.success('Item updated');
-        setItems(prev => prev.map(it => it.id === record.id ? { ...it, [dataIndex]: newValue } : it));
+        setItems(prev => prev.map(item => 
+          item.id === record.id ? updatedItem : item
+        ));
       } catch (error) {
         message.error('Update failed');
       }
@@ -315,13 +286,12 @@ const ItemsPage = () => {
             if (value === 'CREATE_NEW') {
               try {
                 const newLocation = await createNewLocation(locationSearchValue);
-                // Update the item directly with the new location object
                 setEditingCell(null);
                 setLocationSearchValue('');
-                await updateInventory('items', record.id, { storage_location_id: newLocation.id });
+                const updatedItem = await updateInventory('items', record.id, { storage_location_id: newLocation.id });
                 message.success('Item updated');
-                setItems(prev => prev.map(it => 
-                  it.id === record.id ? { ...it, storage_location: newLocation } : it
+                setItems(prev => prev.map(item => 
+                  item.id === record.id ? updatedItem : item
                 ));
               } catch (error) {
                 // Error handled in createNewLocation
@@ -348,22 +318,21 @@ const ItemsPage = () => {
                       cursor: 'pointer',
                       color: '#1890ff'
                     }}
-                    onMouseDown={(e) => e.preventDefault()} // Prevent blur
-                                         onClick={async () => {
-                       try {
-                         const newLocation = await createNewLocation(locationSearchValue);
-                         // Update the item directly with the new location object
-                         setEditingCell(null);
-                         setLocationSearchValue('');
-                         await updateInventory('items', record.id, { storage_location_id: newLocation.id });
-                         message.success('Item updated');
-                         setItems(prev => prev.map(it => 
-                           it.id === record.id ? { ...it, storage_location: newLocation } : it
-                         ));
-                       } catch (error) {
-                         // Error handled in createNewLocation
-                       }
-                     }}
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={async () => {
+                      try {
+                        const newLocation = await createNewLocation(locationSearchValue);
+                        setEditingCell(null);
+                        setLocationSearchValue('');
+                        const updatedItem = await updateInventory('items', record.id, { storage_location_id: newLocation.id });
+                        message.success('Item updated');
+                        setItems(prev => prev.map(item => 
+                          item.id === record.id ? updatedItem : item
+                        ));
+                      } catch (error) {
+                        // Error handled in createNewLocation
+                      }
+                    }}
                   >
                     <PlusOutlined /> Create "{locationSearchValue}"
                   </div>
@@ -381,7 +350,7 @@ const ItemsPage = () => {
     return text || '—';
   };
 
-    const editableCategoryRender = () => (text, record) => {
+  const editableCategoryRender = () => (text, record) => {
     if (editingCell && editingCell.id === record.id && editingCell.dataIndex === 'category') {
       return (
         <TreeSelect
@@ -396,13 +365,12 @@ const ItemsPage = () => {
             if (value === 'CREATE_NEW') {
               try {
                 const newCategory = await createNewCategory(categorySearchValue);
-                // Update the item directly with the new category object
                 setEditingCell(null);
                 setCategorySearchValue('');
-                await updateInventory('items', record.id, { category_id: newCategory.id });
+                const updatedItem = await updateInventory('items', record.id, { category_id: newCategory.id });
                 message.success('Item updated');
-                setItems(prev => prev.map(it => 
-                  it.id === record.id ? { ...it, category: newCategory } : it
+                setItems(prev => prev.map(item => 
+                  item.id === record.id ? updatedItem : item
                 ));
               } catch (error) {
                 // Error handled in createNewCategory
@@ -432,17 +400,16 @@ const ItemsPage = () => {
                       cursor: 'pointer',
                       color: '#1890ff'
                     }}
-                    onMouseDown={(e) => e.preventDefault()} // Prevent blur
+                    onMouseDown={(e) => e.preventDefault()}
                     onClick={async () => {
                       try {
                         const newCategory = await createNewCategory(categorySearchValue);
-                        // Update the item directly with the new category object
                         setEditingCell(null);
                         setCategorySearchValue('');
-                        await updateInventory('items', record.id, { category_id: newCategory.id });
+                        const updatedItem = await updateInventory('items', record.id, { category_id: newCategory.id });
                         message.success('Item updated');
-                        setItems(prev => prev.map(it => 
-                          it.id === record.id ? { ...it, category: newCategory } : it
+                        setItems(prev => prev.map(item => 
+                          item.id === record.id ? updatedItem : item
                         ));
                       } catch (error) {
                         // Error handled in createNewCategory
@@ -482,9 +449,7 @@ const ItemsPage = () => {
       const selectedItems = items.filter(item => selectedRowKeys.includes(item.id));
       
       message.loading({ content: 'Generating PDF...', key: 'pdf' });
-
       await generatePrintSheet({ items: selectedItems, rows, columns, padding });
-      
       message.success({ content: 'PDF generated successfully!', key: 'pdf', duration: 2 });
       
       const qrCodesToUpdate = selectedItems
@@ -494,21 +459,19 @@ const ItemsPage = () => {
       if (qrCodesToUpdate.length > 0) {
         message.loading({ content: `Marking ${qrCodesToUpdate.length} QR code(s) as printed...`, key: 'update_qr' });
         try {
-            const updatePromises = qrCodesToUpdate.map(qrId => 
-              updateInventory('qrcodes', qrId, { is_printed: true })
-            );
-            await Promise.all(updatePromises);
-            message.success({ content: 'QR codes marked as printed.', key: 'update_qr', duration: 2 });
-            fetchData(); // Refresh data
+          const updatePromises = qrCodesToUpdate.map(qrId => 
+            updateInventory('qrcodes', qrId, { is_printed: true })
+          );
+          await Promise.all(updatePromises);
+          message.success({ content: 'QR codes marked as printed.', key: 'update_qr', duration: 2 });
         } catch (updateError) {
-            console.error('Failed to update QR code status:', updateError);
-            message.error({ content: 'Failed to mark QR codes as printed.', key: 'update_qr', duration: 2 });
+          console.error('Failed to update QR code status:', updateError);
+          message.error({ content: 'Failed to mark QR codes as printed.', key: 'update_qr', duration: 2 });
         }
       }
 
       setIsPrintModalVisible(false);
       setSelectedRowKeys([]);
-
     } catch (error) {
       console.error('Failed to generate PDF:', error);
       message.error({ content: 'Failed to generate PDF', key: 'pdf', duration: 2 });
@@ -519,16 +482,12 @@ const ItemsPage = () => {
     setSelectedRowKeys(newSelectedRowKeys);
   };
 
-  const rowSelection = {
-    selectedRowKeys,
-    onChange: onSelectChange,
-  };
-
   const columns = [
     { 
       title: 'Name', 
       dataIndex: 'name', 
       key: 'name', 
+      sorter: true,
       render: editableTextRender('name'),
       onCell: (record) => ({
         onClick: () => {
@@ -556,6 +515,8 @@ const ItemsPage = () => {
     { 
       title: 'Category', 
       key: 'category',
+      sorter: true,
+      filters: categories.map(cat => ({ text: cat.name, value: cat.id })),
       render: (_, record) => {
         const categoryDisplay = getCategoryDisplayPath(record.category?.id);
         return editableCategoryRender()(categoryDisplay, record);
@@ -573,6 +534,8 @@ const ItemsPage = () => {
       title: 'Type', 
       dataIndex: 'item_type', 
       key: 'item_type', 
+      sorter: true,
+      filters: itemTypes.map(type => ({ text: type, value: type })),
       render: editableSelectRender('item_type', itemTypes),
       onCell: (record) => ({
         onClick: () => {
@@ -587,6 +550,8 @@ const ItemsPage = () => {
       title: 'Condition', 
       dataIndex: 'condition', 
       key: 'condition', 
+      sorter: true,
+      filters: itemConditions.map(cond => ({ text: cond, value: cond })),
       render: editableSelectRender('condition', itemConditions),
       onCell: (record) => ({
         onClick: () => {
@@ -601,6 +566,7 @@ const ItemsPage = () => {
       title: 'Quantity', 
       dataIndex: 'quantity', 
       key: 'quantity', 
+      sorter: true,
       render: editableNumberRender('quantity'),
       onCell: (record) => ({
         onClick: () => {
@@ -615,6 +581,8 @@ const ItemsPage = () => {
       title: 'Storage Location', 
       dataIndex: ['storage_location', 'name'], 
       key: 'storage_location',
+      sorter: true,
+      filters: locations.map(loc => ({ text: loc.name, value: loc.id })),
       render: editableLocationRender(),
       onCell: (record) => ({
         onClick: () => {
@@ -625,13 +593,26 @@ const ItemsPage = () => {
         style: { cursor: 'pointer' }
       })
     },
-    { title: 'Last Known', dataIndex: ['last_known_location', 'short_name'], key: 'last_known_location', render: (name, record) => name || '—' },
-    { title: 'QR Code', dataIndex: 'qr_code', key: 'qr_code', render: (qr, record) => {
+    { 
+      title: 'Last Known', 
+      dataIndex: ['last_known_location', 'short_name'], 
+      key: 'last_known_location', 
+      render: (name, record) => name || '—' 
+    },
+    { 
+      title: 'QR Code', 
+      dataIndex: 'qr_code', 
+      key: 'qr_code', 
+      filters: [
+        { text: 'Has QR Code', value: 'true' },
+        { text: 'No QR Code', value: 'false' }
+      ],
+      render: (qr, record) => {
         if (qr && qr.id) {
           return <Button icon={<QrcodeOutlined />} onClick={() => openQr(qr.id)} />;
-                 } else {
-           return <Button icon={<PlusOutlined />} onClick={() => handleGenerateQRCode(record.id)}>Add</Button>;
-         }
+        } else {
+          return <Button icon={<PlusOutlined />} onClick={() => handleGenerateQRCode(record.id)}>Add</Button>;
+        }
       }
     },
     {
@@ -639,39 +620,89 @@ const ItemsPage = () => {
       key: 'action',
       render: (_, record) => (
         <Space size="middle">
-          <Button icon={<EditOutlined />} onClick={() => showEditModal(record)}>Edit</Button>
-          <Button icon={<DeleteOutlined />} danger onClick={() => handleDelete(record.id)}>Delete</Button>
+          <Button icon={<EditOutlined />} onClick={() => showEditModal(record)}/>
+          <Button icon={<DeleteOutlined />} danger onClick={() => handleDelete(record.id)}/>
         </Space>
       ),
     },
   ];
 
+  const extraFilters = [
+    {
+      key: 'category',
+      label: 'Category',
+      type: 'select',
+      options: categories.map(cat => ({ value: cat.id, label: cat.name }))
+    },
+    {
+      key: 'item_type',
+      label: 'Item Type',
+      type: 'multiselect',
+      options: itemTypes.map(type => ({ value: type, label: type }))
+    },
+    {
+      key: 'condition',
+      label: 'Condition',
+      type: 'multiselect',
+      options: itemConditions.map(cond => ({ value: cond, label: cond }))
+    },
+    {
+      key: 'quantity',
+      label: 'Quantity Range',
+      type: 'numberrange'
+    },
+    {
+      key: 'storage_location',
+      label: 'Storage Location',
+      type: 'select',
+      options: locations.map(loc => ({ value: loc.id, label: loc.name }))
+    },
+    {
+      key: 'qr_code__isnull',
+      label: 'QR Code Status',
+      type: 'select',
+      options: [
+        { value: 'false', label: 'Has QR Code' },
+        { value: 'true', label: 'No QR Code' }
+      ]
+    }
+  ];
+
+  const additionalActions = [
+    <Button
+      key="add"
+      type="primary"
+      icon={<PlusOutlined />}
+      onClick={showAddModal}
+    >
+      Add Item
+    </Button>,
+    <Button
+      key="print"
+      type="primary"
+      onClick={showPrintModal}
+      disabled={!selectedRowKeys.length}
+    >
+      Generate Print Sheet ({selectedRowKeys.length})
+    </Button>
+  ];
+
   return (
     <ProtectedRoute>
       <div style={{ padding: '50px' }}>
-        <Button
-          type="primary"
-          icon={<PlusOutlined />}
-          onClick={showAddModal}
-          style={{ marginBottom: 16 }}
-        >
-          Add Item
-        </Button>
-        <Button
-          type="primary"
-          onClick={showPrintModal}
-          disabled={!selectedRowKeys.length}
-          style={{ marginLeft: 8 }}
-        >
-          Generate Print Sheet ({selectedRowKeys.length})
-        </Button>
-        <Table
-          rowSelection={rowSelection}
+        <h1>Inventory Items</h1>
+        
+        <InventoryTable
+          resource="items"
           columns={columns}
-          dataSource={items}
-          loading={loading}
-          rowKey="id"
+          searchPlaceholder="Search items by name, description, category, location..."
+          extraFilters={extraFilters}
+          additionalActions={additionalActions}
+          onRowSelect={onSelectChange}
+          data={items}
         />
+
+        {/* Add Item Modal */}
         <Modal
           title="Add Item"
           open={isAddModalVisible}
@@ -686,6 +717,7 @@ const ItemsPage = () => {
           </Form>
         </Modal>
         
+        {/* Edit Item Modal */}
         <ItemEditModal
           open={isEditModalVisible}
           onCancel={handleEditModalClose}
@@ -700,6 +732,8 @@ const ItemsPage = () => {
           onCategoriesUpdate={handleCategoriesUpdate}
           onLocationsUpdate={handleLocationsUpdate}
         />
+
+        {/* Print Modal */}
         <Modal
           title="Configure Print Sheet"
           open={isPrintModalVisible}
@@ -719,8 +753,8 @@ const ItemsPage = () => {
             </Form.Item>
           </Form>
         </Modal>
-
         
+        {/* QR Code Modal */}
         <QRCodeModal open={qrModalOpen} onCancel={() => setQrModalOpen(false)} qrCodeValue={selectedQrValue} />
       </div>
     </ProtectedRoute>
