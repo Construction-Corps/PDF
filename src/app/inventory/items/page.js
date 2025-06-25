@@ -105,13 +105,26 @@ const ItemsPage = () => {
 
   const handleCellSave = async (record, dataIndex, newValue) => {
     setEditingCell(null);
-    if (newValue === record[dataIndex]) return;
-    try {
-      await updateInventory('items', record.id, { [dataIndex]: newValue });
-      message.success('Item updated');
-      setItems(prev => prev.map(it => it.id === record.id ? { ...it, [dataIndex]: newValue } : it));
-    } catch (error) {
-      message.error('Update failed');
+    if (dataIndex === 'storage_location') {
+      if (newValue === record.storage_location?.id) return;
+      try {
+        await updateInventory('items', record.id, { storage_location: newValue });
+        message.success('Item updated');
+        // Update the state with the new location object
+        const newLocation = locations.find(loc => loc.id === newValue);
+        setItems(prev => prev.map(it => it.id === record.id ? { ...it, storage_location: newLocation } : it));
+      } catch (error) {
+        message.error('Update failed');
+      }
+    } else {
+      if (newValue === record[dataIndex]) return;
+      try {
+        await updateInventory('items', record.id, { [dataIndex]: newValue });
+        message.success('Item updated');
+        setItems(prev => prev.map(it => it.id === record.id ? { ...it, [dataIndex]: newValue } : it));
+      } catch (error) {
+        message.error('Update failed');
+      }
     }
   };
 
@@ -159,6 +172,24 @@ const ItemsPage = () => {
       );
     }
     return text;
+  };
+
+  const editableLocationRender = () => (text, record) => {
+    if (editingCell && editingCell.id === record.id && editingCell.dataIndex === 'storage_location') {
+      return (
+        <Select
+          defaultValue={record.storage_location?.id}
+          style={{ width: 150 }}
+          onBlur={() => setEditingCell(null)}
+          onChange={(value) => handleCellSave(record, 'storage_location', value)}
+          options={locations.map(loc => ({ value: loc.id, label: loc.name }))}
+          allowClear
+          autoFocus
+          open
+        />
+      );
+    }
+    return text || '—';
   };
 
   const openQr = (val) => {
@@ -295,7 +326,20 @@ const ItemsPage = () => {
         style: { cursor: 'pointer' }
       })
     },
-    { title: 'Storage Location', dataIndex: ['storage_location', 'name'], key: 'storage_location' },
+    { 
+      title: 'Storage Location', 
+      dataIndex: ['storage_location', 'name'], 
+      key: 'storage_location',
+      render: editableLocationRender(),
+      onCell: (record) => ({
+        onClick: () => {
+          if (!editingCell || editingCell.id !== record.id || editingCell.dataIndex !== 'storage_location') {
+            setEditingCell({ id: record.id, dataIndex: 'storage_location' });
+          }
+        },
+        style: { cursor: 'pointer' }
+      })
+    },
     { title: 'Last Known', dataIndex: ['last_known_location', 'short_name'], key: 'last_known_location', render: (name, record) => name || '—' },
     { title: 'QR Code', dataIndex: 'qr_code', key: 'qr_code', render: (qr) => qr && qr.id ? <Button icon={<QrcodeOutlined />} onClick={() => openQr(qr.id)}/> : '—' },
     {
