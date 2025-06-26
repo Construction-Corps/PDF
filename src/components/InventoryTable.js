@@ -391,6 +391,7 @@ const InventoryTable = ({
         pagination={pagination}
         onChange={handleTableChange}
         scroll={{ x: true }}
+        sticky={true}
         expandable={expandable}
         rowSelection={onRowSelect ? {
           onChange: onRowSelect

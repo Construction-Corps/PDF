@@ -488,6 +488,7 @@ const ItemsPage = () => {
       dataIndex: 'name', 
       key: 'name', 
       sorter: true,
+      width: 220,
       render: editableTextRender('name'),
       onCell: (record) => ({
         onClick: () => {
@@ -501,7 +502,8 @@ const ItemsPage = () => {
     { 
       title: 'Description', 
       dataIndex: 'description', 
-      key: 'description', 
+      key: 'description',
+      width: 150,
       render: editableTextRender('description'),
       onCell: (record) => ({
         onClick: () => {
@@ -516,6 +518,7 @@ const ItemsPage = () => {
       title: 'Category', 
       key: 'category',
       sorter: true,
+      width: 180,
       filters: categories.map(cat => ({ text: cat.name, value: cat.id })),
       render: (_, record) => {
         const categoryDisplay = getCategoryDisplayPath(record.category?.id);
@@ -535,6 +538,7 @@ const ItemsPage = () => {
       dataIndex: 'item_type', 
       key: 'item_type', 
       sorter: true,
+      width: 100,
       filters: itemTypes.map(type => ({ text: type, value: type })),
       render: editableSelectRender('item_type', itemTypes),
       onCell: (record) => ({
@@ -551,6 +555,7 @@ const ItemsPage = () => {
       dataIndex: 'condition', 
       key: 'condition', 
       sorter: true,
+      width: 100,
       filters: itemConditions.map(cond => ({ text: cond, value: cond })),
       render: editableSelectRender('condition', itemConditions),
       onCell: (record) => ({
@@ -567,6 +572,7 @@ const ItemsPage = () => {
       dataIndex: 'quantity', 
       key: 'quantity', 
       sorter: true,
+      width: 80,
       render: editableNumberRender('quantity'),
       onCell: (record) => ({
         onClick: () => {
@@ -578,10 +584,11 @@ const ItemsPage = () => {
       })
     },
     { 
-      title: 'Storage Location', 
+      title: 'Stored At', 
       dataIndex: ['storage_location', 'name'], 
       key: 'storage_location',
       sorter: true,
+      width: 150,
       filters: locations.map(loc => ({ text: loc.name, value: loc.id })),
       render: editableLocationRender(),
       onCell: (record) => ({
@@ -596,13 +603,15 @@ const ItemsPage = () => {
     { 
       title: 'Last Known', 
       dataIndex: ['last_known_location', 'short_name'], 
-      key: 'last_known_location', 
+      key: 'last_known_location',
+      width: 120,
       render: (name, record) => name || '—' 
     },
     { 
       title: 'QR Code', 
       dataIndex: 'qr_code', 
-      key: 'qr_code', 
+      key: 'qr_code',
+      width: 120,
       filters: [
         { text: 'Has QR Code', value: 'true' },
         { text: 'No QR Code', value: 'false' }
@@ -611,17 +620,18 @@ const ItemsPage = () => {
         if (qr && qr.id) {
           return <Button icon={<QrcodeOutlined />} onClick={() => openQr(qr.id)} />;
         } else {
-          return <Button icon={<PlusOutlined />} onClick={() => handleGenerateQRCode(record.id)}>Add</Button>;
+          return <Button icon={<PlusOutlined />} onClick={() => handleGenerateQRCode(record.id)}/>;
         }
       }
     },
     {
       title: 'Action',
       key: 'action',
+      width: 150,
       render: (_, record) => (
         <Space size="middle">
           <Button icon={<EditOutlined />} onClick={() => showEditModal(record)}/>
-          <Button icon={<DeleteOutlined />} danger onClick={() => handleDelete(record.id)}/>
+          <Button style={{ marginRight: 0 }} icon={<DeleteOutlined />} danger onClick={() => handleDelete(record.id)}/>
         </Space>
       ),
     },
