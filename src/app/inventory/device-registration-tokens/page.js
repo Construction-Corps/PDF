@@ -1,46 +1,33 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Table, Button, Space, Modal, Form, Select, message, Tag, Popover } from 'antd';
+import { Button, Space, Modal, Form, Select, message, Tag, Popover } from 'antd';
 import { PlusOutlined, DeleteOutlined, QrcodeOutlined } from '@ant-design/icons';
 import { fetchInventory, createInventory, deleteInventory, fetchUsers } from '../../../utils/InventoryApi';
 import ProtectedRoute from '../../../components/ProtectedRoute';
+import InventoryTable from '../../../components/InventoryTable';
 import QRCodeModal from '../../../components/QRCodeModal';
 
 const { Option } = Select;
 
 const DeviceRegistrationTokensPage = () => {
-  const [tokens, setTokens] = useState([]);
   const [users, setUsers] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [isCreateModalVisible, setCreateModalVisible] = useState(false);
   const [qrModalValue, setQrModalValue] = useState(null);
   const [form] = Form.useForm();
+  const [dataManager, setDataManager] = useState(null);
 
   useEffect(() => {
-    fetchData();
+    fetchSupportingData();
   }, []);
 
-  const fetchData = async () => {
-    setLoading(true);
+  const fetchSupportingData = async () => {
     try {
-      const [tokensData, usersData] = await Promise.all([
-        fetchInventory('device-registration-tokens'),
-        fetchUsers()
-      ]);
-      setTokens(tokensData);
+      const usersData = await fetchUsers();
       setUsers(usersData);
     } catch (error) {
-        console.error(error);
-        try {
-            const tokensData = await fetchInventory('device-registration-tokens');
-            setTokens(tokensData);
-            message.warn('Could not fetch users. Token creation will be disabled.');
-        } catch (tokensError) {
-            message.error('Failed to fetch registration tokens.');
-        }
-    } finally {
-      setLoading(false);
+      console.error(error);
+      message.warn('Could not fetch users. Token creation will be disabled.');
     }
   };
 
@@ -56,10 +43,13 @@ const DeviceRegistrationTokensPage = () => {
         user: values.user_id,
       };
 
-      await createInventory('device-registration-tokens', payload);
+      const newToken = await createInventory('device-registration-tokens', payload);
       message.success('Token created successfully');
       setCreateModalVisible(false);
-      fetchData();
+      // Add new token to table
+      if (dataManager) {
+        dataManager.addItem(newToken);
+      }
     } catch (error) {
       message.error('Failed to create token');
     }
@@ -69,7 +59,10 @@ const DeviceRegistrationTokensPage = () => {
     try {
       await deleteInventory('device-registration-tokens', id);
       message.success('Token deleted successfully');
-      fetchData();
+      // Remove token from table
+      if (dataManager) {
+        dataManager.removeItem(id);
+      }
     } catch (error) {
       message.error('Failed to delete token');
     }
@@ -80,6 +73,7 @@ const DeviceRegistrationTokensPage = () => {
       title: 'Token ID', 
       dataIndex: 'id', 
       key: 'id',
+      sorter: true,
       render: (id) => (
         <Space>
           <Popover content={id} title="Token ID" trigger="hover">
@@ -92,6 +86,7 @@ const DeviceRegistrationTokensPage = () => {
     { 
       title: 'User', 
       key: 'user',
+      sorter: true,
       render: (_, record) => {
         const user = users.find(u => u.id === record.user);
         return user ? (user.first_name || user.last_name ? `${user.first_name} ${user.last_name}`.trim() : user.email) : '—';
@@ -106,25 +101,46 @@ const DeviceRegistrationTokensPage = () => {
     },
   ];
 
+  const extraFilters = [
+    {
+      key: 'user',
+      label: 'User',
+      type: 'select',
+      options: users.map(u => ({
+        value: u.id,
+        label: u.first_name || u.last_name ? 
+          `${u.first_name} ${u.last_name}`.trim() : 
+          u.email
+      }))
+    }
+  ];
+
+  const additionalActions = [
+    <Button
+      key="create"
+      type="primary"
+      icon={<PlusOutlined />}
+      onClick={showCreateModal}
+      disabled={users.length === 0}
+    >
+      Generate New Token
+    </Button>
+  ];
+
   return (
     <ProtectedRoute>
       <div style={{ padding: '50px' }}>
         <h2>Device Registration Tokens</h2>
-        <Button
-          type="primary"
-          icon={<PlusOutlined />}
-          onClick={showCreateModal}
-          style={{ marginBottom: 16 }}
-          disabled={users.length === 0}
-        >
-          Generate New Token
-        </Button>
-        <Table
+        
+        <InventoryTable
+          resource="device-registration-tokens"
           columns={columns}
-          dataSource={tokens}
-          loading={loading}
-          rowKey="id"
+          searchPlaceholder="Search tokens by user..."
+          extraFilters={extraFilters}
+          additionalActions={additionalActions}
+          onDataChange={setDataManager}
         />
+        
         <Modal
           title="Generate Registration Token"
           open={isCreateModalVisible}

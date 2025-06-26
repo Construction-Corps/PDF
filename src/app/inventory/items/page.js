@@ -13,7 +13,6 @@ import { generatePrintSheet } from '../../../utils/printUtils';
 const { Option } = Select;
 
 const ItemsPage = () => {
-  const [items, setItems] = useState([]);
   const [locations, setLocations] = useState([]);
   const [categories, setCategories] = useState([]);
   const [categoryTree, setCategoryTree] = useState([]);
@@ -31,22 +30,14 @@ const ItemsPage = () => {
   const [categorySearchValue, setCategorySearchValue] = useState('');
   const [locationSearchValue, setLocationSearchValue] = useState('');
 
+  const [dataManager, setDataManager] = useState(null);
+
   const itemTypes = ['TOOL', 'SUPPLY', 'EQUIPMENT'];
   const itemConditions = ['NEW', 'GOOD', 'FAIR', 'POOR', 'BROKEN'];
 
   useEffect(() => {
     fetchSupportingData();
-    fetchItemsData();
   }, []);
-
-  const fetchItemsData = async () => {
-    try {
-      const itemsData = await fetchInventory('items');
-      setItems(itemsData);
-    } catch (error) {
-      message.error('Failed to fetch items');
-    }
-  };
 
   const fetchSupportingData = async () => {
     try {
@@ -84,14 +75,16 @@ const ItemsPage = () => {
     // Refresh will be handled by the InventoryTable component
   };
 
-    const handleAddOk = async () => {
+  const handleAddOk = async () => {
     try {
       const values = await addForm.validateFields();
       const newItem = await createInventory('items', values);
       message.success('Item created successfully');
       setIsAddModalVisible(false);
       addForm.resetFields();
-      setItems(prev => [...prev, newItem]);
+      if (dataManager) {
+        dataManager.addItem(newItem);
+      }
     } catch (error) {
       message.error('Failed to create item');
     }
@@ -106,7 +99,9 @@ const ItemsPage = () => {
     try {
       await deleteInventory('items', id);
       message.success('Item deleted successfully');
-      setItems(prev => prev.filter(item => item.id !== id));
+      if (dataManager) {
+        dataManager.removeItem(id);
+      }
     } catch (error) {
       message.error('Failed to delete item');
     }
@@ -116,9 +111,9 @@ const ItemsPage = () => {
     try {
       const result = await generateQRCode(itemId);
       message.success('QR code generated successfully');
-      setItems(prev => prev.map(item => 
-        item.id === itemId ? result.item : item
-      ));
+      if (dataManager) {
+        dataManager.updateItem(itemId, result.item);
+      }
       return result.item;
     } catch (error) {
       // Error already handled by the InventoryApi utility
@@ -191,9 +186,9 @@ const ItemsPage = () => {
       try {
         const updatedItem = await updateInventory('items', record.id, { storage_location_id: newValue });
         message.success('Item updated');
-        setItems(prev => prev.map(item => 
-          item.id === record.id ? updatedItem : item
-        ));
+        if (dataManager) {
+          dataManager.updateItem(record.id, updatedItem);
+        }
       } catch (error) {
         message.error('Update failed');
       }
@@ -202,9 +197,9 @@ const ItemsPage = () => {
       try {
         const updatedItem = await updateInventory('items', record.id, { category_id: newValue });
         message.success('Item updated');
-        setItems(prev => prev.map(item => 
-          item.id === record.id ? updatedItem : item
-        ));
+        if (dataManager) {
+          dataManager.updateItem(record.id, updatedItem);
+        }
       } catch (error) {
         message.error('Update failed');
       }
@@ -213,9 +208,9 @@ const ItemsPage = () => {
       try {
         const updatedItem = await updateInventory('items', record.id, { [dataIndex]: newValue });
         message.success('Item updated');
-        setItems(prev => prev.map(item => 
-          item.id === record.id ? updatedItem : item
-        ));
+        if (dataManager) {
+          dataManager.updateItem(record.id, updatedItem);
+        }
       } catch (error) {
         message.error('Update failed');
       }
@@ -290,9 +285,9 @@ const ItemsPage = () => {
                 setLocationSearchValue('');
                 const updatedItem = await updateInventory('items', record.id, { storage_location_id: newLocation.id });
                 message.success('Item updated');
-                setItems(prev => prev.map(item => 
-                  item.id === record.id ? updatedItem : item
-                ));
+                if (dataManager) {
+                  dataManager.updateItem(record.id, updatedItem);
+                }
               } catch (error) {
                 // Error handled in createNewLocation
               }
@@ -326,9 +321,9 @@ const ItemsPage = () => {
                         setLocationSearchValue('');
                         const updatedItem = await updateInventory('items', record.id, { storage_location_id: newLocation.id });
                         message.success('Item updated');
-                        setItems(prev => prev.map(item => 
-                          item.id === record.id ? updatedItem : item
-                        ));
+                        if (dataManager) {
+                          dataManager.updateItem(record.id, updatedItem);
+                        }
                       } catch (error) {
                         // Error handled in createNewLocation
                       }
@@ -369,9 +364,9 @@ const ItemsPage = () => {
                 setCategorySearchValue('');
                 const updatedItem = await updateInventory('items', record.id, { category_id: newCategory.id });
                 message.success('Item updated');
-                setItems(prev => prev.map(item => 
-                  item.id === record.id ? updatedItem : item
-                ));
+                if (dataManager) {
+                  dataManager.updateItem(record.id, updatedItem);
+                }
               } catch (error) {
                 // Error handled in createNewCategory
               }
@@ -408,9 +403,9 @@ const ItemsPage = () => {
                         setCategorySearchValue('');
                         const updatedItem = await updateInventory('items', record.id, { category_id: newCategory.id });
                         message.success('Item updated');
-                        setItems(prev => prev.map(item => 
-                          item.id === record.id ? updatedItem : item
-                        ));
+                        if (dataManager) {
+                          dataManager.updateItem(record.id, updatedItem);
+                        }
                       } catch (error) {
                         // Error handled in createNewCategory
                       }
@@ -446,7 +441,7 @@ const ItemsPage = () => {
     try {
       const values = await printForm.validateFields();
       const { rows, columns, padding } = values;
-      const selectedItems = items.filter(item => selectedRowKeys.includes(item.id));
+      const selectedItems = dataManager ? dataManager.data.filter(item => selectedRowKeys.includes(item.id)) : [];
       
       message.loading({ content: 'Generating PDF...', key: 'pdf' });
       await generatePrintSheet({ items: selectedItems, rows, columns, padding });
@@ -709,7 +704,7 @@ const ItemsPage = () => {
           extraFilters={extraFilters}
           additionalActions={additionalActions}
           onRowSelect={onSelectChange}
-          data={items}
+          onDataChange={setDataManager}
         />
 
         {/* Add Item Modal */}

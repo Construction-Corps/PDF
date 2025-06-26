@@ -18,10 +18,11 @@ const InventoryTable = ({
   additionalActions = null,
   onRowSelect = null,
   expandable = null,
-  data = null,
+  onDataChange = null,
+  dataUpdateCallbacks = null,
   ...tableProps
 }) => {
-  const [internalData, setInternalData] = useState([]);
+  const [data, setData] = useState([]);
   const [loading, setLoading] = useState(false);
   const [pagination, setPagination] = useState({
     current: 1,
@@ -36,18 +37,25 @@ const InventoryTable = ({
   const [sorter, setSorter] = useState({});
   const [showFilters, setShowFilters] = useState(false);
 
-  // Use external data if provided, otherwise use internal data
-  const tableData = data || internalData;
-
-  // Update pagination when external data changes
   useEffect(() => {
-    if (data !== null) {
-      setPagination(prev => ({
-        ...prev,
-        total: data.length
-      }));
+    if (onDataChange) {
+      onDataChange({
+        data,
+        updateItem: (id, updatedItem) => {
+          setData(prev => prev.map(item => item.id === id ? updatedItem : item));
+        },
+        addItem: (newItem) => {
+          setData(prev => [...prev, newItem]);
+          setPagination(prev => ({ ...prev, total: prev.total + 1 }));
+        },
+        removeItem: (id) => {
+          setData(prev => prev.filter(item => item.id !== id));
+          setPagination(prev => ({ ...prev, total: prev.total - 1 }));
+        },
+        refreshData: () => fetchData(true)
+      });
     }
-  }, [data]);
+  }, [data, onDataChange]);
 
   const buildApiParams = useCallback(() => {
     const params = new URLSearchParams();
@@ -88,81 +96,76 @@ const InventoryTable = ({
         setPagination(prev => ({ ...prev, current: 1 }));
       }
       
-      // Only fetch data if no external data is provided
-      if (data === null) {
-        // For simple cases without filters/search, use existing InventoryApi method
-        if (!searchText.trim() && Object.keys(filters).length === 0 && !sorter.field) {
-          const result = await fetchInventory(resource);
-          setInternalData(result);
+      // For simple cases without filters/search, use existing InventoryApi method
+      if (!searchText.trim() && Object.keys(filters).length === 0 && !sorter.field) {
+        const result = await fetchInventory(resource);
+        setData(result);
+        setPagination(prev => ({
+          ...prev,
+          total: result.length,
+          current: resetPagination ? 1 : prev.current
+        }));
+      } else {
+        // For advanced cases with filters/search, use direct API call but with proper auth
+        const params = buildApiParams();
+        
+        // Get auth token like InventoryApi does
+        const authToken = typeof localStorage !== 'undefined' ? localStorage.getItem('authToken') : null;
+        const headers = { 
+          "Content-Type": "application/json" 
+        };
+        
+        if (authToken) {
+          headers["Authorization"] = `Token ${authToken}`;
+        }
+        
+        const response = await fetch(`https://ccbe.onrender.com/api/inventory/${resource}/?${params}`, {
+          method: 'GET',
+          headers: headers
+        });
+        
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const result = await response.json();
+        
+        // Handle both paginated and non-paginated responses
+        if (result.results) {
+          setData(result.results);
+          setPagination(prev => ({
+            ...prev,
+            total: result.count,
+            current: resetPagination ? 1 : prev.current
+          }));
+        } else {
+          setData(result);
           setPagination(prev => ({
             ...prev,
             total: result.length,
             current: resetPagination ? 1 : prev.current
           }));
-        } else {
-          // For advanced cases with filters/search, use direct API call but with proper auth
-          const params = buildApiParams();
-          
-          // Get auth token like InventoryApi does
-          const authToken = typeof localStorage !== 'undefined' ? localStorage.getItem('authToken') : null;
-          const headers = { 
-            "Content-Type": "application/json" 
-          };
-          
-          if (authToken) {
-            headers["Authorization"] = `Token ${authToken}`;
-          }
-          
-          const response = await fetch(`https://ccbe.onrender.com/api/inventory/${resource}/?${params}`, {
-            method: 'GET',
-            headers: headers
-          });
-          
-          if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-          }
-          
-          const result = await response.json();
-          
-          // Handle both paginated and non-paginated responses
-          if (result.results) {
-            setInternalData(result.results);
-            setPagination(prev => ({
-              ...prev,
-              total: result.count,
-              current: resetPagination ? 1 : prev.current
-            }));
-          } else {
-            setInternalData(result);
-            setPagination(prev => ({
-              ...prev,
-              total: result.length,
-              current: resetPagination ? 1 : prev.current
-            }));
-          }
         }
       }
     } catch (error) {
       console.error('Failed to fetch data:', error);
       // Fallback to basic fetchInventory if advanced call fails
-      if (data === null) {
-        try {
-          const fallbackData = await fetchInventory(resource);
-          setInternalData(fallbackData);
-          setPagination(prev => ({
-            ...prev,
-            total: fallbackData.length,
-            current: 1
-          }));
-        } catch (fallbackError) {
-          console.error('Fallback fetch also failed:', fallbackError);
-          setInternalData([]);
-        }
+      try {
+        const fallbackData = await fetchInventory(resource);
+        setData(fallbackData);
+        setPagination(prev => ({
+          ...prev,
+          total: fallbackData.length,
+          current: 1
+        }));
+      } catch (fallbackError) {
+        console.error('Fallback fetch also failed:', fallbackError);
+        setData([]);
       }
     } finally {
       setLoading(false);
     }
-  }, [resource, buildApiParams, searchText, filters, sorter, data]);
+  }, [resource, buildApiParams, searchText, filters, sorter]);
 
   // Debounced search
   const debouncedSearch = useMemo(
@@ -174,10 +177,8 @@ const InventoryTable = ({
   );
 
   useEffect(() => {
-    if (data === null) {
-      fetchData(true);
-    }
-  }, [fetchData, data]);
+    fetchData(true);
+  }, [fetchData]);
 
   const handleTableChange = (newPagination, tableFilters, tableSorter) => {
     setPagination(newPagination);
@@ -323,6 +324,19 @@ const InventoryTable = ({
                   </div>
                 );
               
+              case 'text':
+                return (
+                  <div key={key} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    <label style={{ fontSize: 12, fontWeight: 500 }}>{label}</label>
+                    <Input
+                      placeholder={placeholder}
+                      value={value}
+                      onChange={(e) => handleFilterChange(key, e.target.value)}
+                      style={{ minWidth: 120 }}
+                    />
+                  </div>
+                );
+              
               default:
                 return null;
             }
@@ -385,7 +399,7 @@ const InventoryTable = ({
       {/* Table */}
       <Table
         columns={columns}
-        dataSource={tableData}
+        dataSource={data}
         loading={loading}
         rowKey={rowKey}
         pagination={pagination}

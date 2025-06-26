@@ -10,6 +10,7 @@ import InventoryTable from '../../../components/InventoryTable';
 const ScanLogsPage = () => {
   const [users, setUsers] = useState([]);
   const [items, setItems] = useState([]);
+  const [dataManager, setDataManager] = useState(null);
 
   useEffect(() => {
     fetchSupportingData();
@@ -37,6 +38,10 @@ const ScanLogsPage = () => {
 
   const refreshData = () => {
     fetchSupportingData();
+    // Also refresh the main table data
+    if (dataManager) {
+      dataManager.refreshData();
+    }
   };
 
   const columns = [
@@ -207,6 +212,7 @@ const ScanLogsPage = () => {
           extraFilters={extraFilters}
           additionalActions={additionalActions}
           defaultPageSize={25}
+          onDataChange={setDataManager}
         />
       </div>
     </ProtectedRoute>
