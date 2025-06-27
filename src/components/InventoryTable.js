@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Table, Input, Button, Space, Card, Select, DatePicker, InputNumber, Checkbox } from 'antd';
+import { Table, Input, Button, Space, Card, Select, DatePicker, InputNumber, Checkbox, Spin } from 'antd';
 import { SearchOutlined, FilterOutlined, ClearOutlined, ReloadOutlined } from '@ant-design/icons';
 import { fetchInventory } from '../utils/InventoryApi';
 import debounce from 'lodash.debounce';
@@ -24,14 +24,10 @@ const InventoryTable = ({
 }) => {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [pagination, setPagination] = useState({
-    current: 1,
-    pageSize: defaultPageSize,
-    total: 0,
-    showSizeChanger: true,
-    showQuickJumper: true,
-    showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} items`,
-  });
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
   const [searchText, setSearchText] = useState('');
   const [filters, setFilters] = useState({});
   const [sorter, setSorter] = useState({});
@@ -46,11 +42,11 @@ const InventoryTable = ({
         },
         addItem: (newItem) => {
           setData(prev => [newItem, ...prev]);
-          setPagination(prev => ({ ...prev, total: prev.total + 1 }));
+          setTotalCount(prev => prev + 1);
         },
         removeItem: (id) => {
           setData(prev => prev.filter(item => item.id !== id));
-          setPagination(prev => ({ ...prev, total: prev.total - 1 }));
+          setTotalCount(prev => prev - 1);
         },
         refreshData: () => fetchData(true)
       });
@@ -69,11 +65,11 @@ const InventoryTable = ({
     return fieldMapping[field] || field;
   };
 
-  const buildApiParams = useCallback(() => {
+  const buildApiParams = useCallback((page = 1) => {
     const params = [];
     
-    params.push(`page=${pagination.current}`);
-    params.push(`page_size=${pagination.pageSize}`);
+    params.push(`page=${page}`);
+    params.push(`page_size=${defaultPageSize}`);
     
     if (searchText.trim()) {
       params.push(`search=${encodeURIComponent(searchText.trim())}`);
@@ -101,16 +97,20 @@ const InventoryTable = ({
     }
     
     return params.join('&');
-  }, [pagination.current, pagination.pageSize, searchText, filters, sorter]);
+  }, [defaultPageSize, searchText, filters, sorter]);
 
-  const fetchData = useCallback(async (resetPagination = false) => {
-    setLoading(true);
+  const fetchData = useCallback(async (reset = false, page = 1) => {
+    if (reset) {
+      setLoading(true);
+      setData([]);
+      setCurrentPage(1);
+      setHasMore(true);
+    } else {
+      setLoadingMore(true);
+    }
+
     try {
-      if (resetPagination) {
-        setPagination(prev => ({ ...prev, current: 1 }));
-      }
-      
-      const params = buildApiParams();
+      const params = buildApiParams(page);
       
       const authToken = typeof localStorage !== 'undefined' ? localStorage.getItem('authToken') : null;
       const headers = { 
@@ -133,53 +133,119 @@ const InventoryTable = ({
       const result = await response.json();
       
       if (result.results) {
-        setData(result.results);
-        setPagination(prev => ({
-          ...prev,
-          total: result.count,
-          current: resetPagination ? 1 : prev.current
-        }));
+        const newData = result.results;
+        setTotalCount(result.count);
+        
+        if (reset) {
+          setData(newData);
+        } else {
+          setData(prev => [...prev, ...newData]);
+        }
+        
+        // Check if there are more pages
+        const totalPages = Math.ceil(result.count / defaultPageSize);
+        setHasMore(page < totalPages);
+        setCurrentPage(page);
       } else {
-        setData(result);
-        setPagination(prev => ({
-          ...prev,
-          total: result.length,
-          current: resetPagination ? 1 : prev.current
-        }));
+        // Fallback for non-paginated responses
+        if (reset) {
+          setData(result);
+          setTotalCount(result.length);
+          setHasMore(false);
+        }
       }
     } catch (error) {
       console.error('Failed to fetch data:', error);
-      try {
-        const fallbackData = await fetchInventory(resource);
-        setData(fallbackData);
-        setPagination(prev => ({
-          ...prev,
-          total: fallbackData.length,
-          current: 1
-        }));
-      } catch (fallbackError) {
-        console.error('Fallback fetch also failed:', fallbackError);
-        setData([]);
+      // Fallback to basic fetchInventory if API call fails
+      if (reset) {
+        try {
+          const fallbackData = await fetchInventory(resource);
+          setData(fallbackData);
+          setTotalCount(fallbackData.length);
+          setHasMore(false);
+        } catch (fallbackError) {
+          console.error('Fallback fetch also failed:', fallbackError);
+          setData([]);
+          setTotalCount(0);
+          setHasMore(false);
+        }
       }
     } finally {
       setLoading(false);
+      setLoadingMore(false);
     }
-  }, [resource, buildApiParams, searchText, filters, sorter]);
+  }, [resource, buildApiParams, defaultPageSize]);
+
+  const loadMore = useCallback(() => {
+    if (!loadingMore && hasMore) {
+      fetchData(false, currentPage + 1);
+    }
+  }, [fetchData, loadingMore, hasMore, currentPage]);
+
+  // Window scroll event handler for infinite scroll
+  useEffect(() => {
+    const handleScroll = () => {
+      // Use document.documentElement for better cross-browser support
+      const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+      const windowHeight = window.innerHeight;
+      const documentHeight = document.documentElement.scrollHeight;
+      
+      // Calculate how much of the page has been scrolled
+      const scrolled = scrollTop + windowHeight;
+      const threshold = documentHeight * 0.8; // 80% of document height
+      
+      // Debug logging (can be removed later)
+      if (scrolled > threshold) {
+        console.log('Scroll threshold reached:', {
+          scrolled,
+          threshold,
+          documentHeight,
+          hasMore,
+          loadingMore,
+          currentPage
+        });
+      }
+      
+      // Load more when scrolled past 80% of document height
+      if (scrolled >= threshold && hasMore && !loadingMore) {
+        console.log('Loading more data...');
+        loadMore();
+      }
+    };
+
+    // Throttle scroll events for better performance
+    let ticking = false;
+    const throttledScroll = () => {
+      if (!ticking) {
+        requestAnimationFrame(() => {
+          handleScroll();
+          ticking = false;
+        });
+        ticking = true;
+      }
+    };
+
+    window.addEventListener('scroll', throttledScroll, { passive: true });
+    return () => window.removeEventListener('scroll', throttledScroll);
+  }, [loadMore, hasMore, loadingMore, currentPage]);
 
   const debouncedSearch = useMemo(
     () => debounce((value) => {
       setSearchText(value);
-      setPagination(prev => ({ ...prev, current: 1 }));
+      setCurrentPage(1);
     }, 300),
     []
   );
 
   useEffect(() => {
-    fetchData(true);
-  }, [fetchData]);
+    fetchData(true, 1);
+  }, [searchText, filters, sorter]);
+
+  useEffect(() => {
+    fetchData(true, 1);
+  }, []);
 
   const handleTableChange = (newPagination, tableFilters, tableSorter) => {
-    setPagination(newPagination);
     setSorter(tableSorter);
     
     const newFilters = {};
@@ -196,14 +262,14 @@ const InventoryTable = ({
       ...prev,
       [filterKey]: value
     }));
-    setPagination(prev => ({ ...prev, current: 1 }));
+    setCurrentPage(1);
   };
 
   const clearFilters = () => {
     setFilters({});
     setSearchText('');
     setSorter({});
-    setPagination(prev => ({ ...prev, current: 1 }));
+    setCurrentPage(1);
   };
 
   const renderFilterControls = () => {
@@ -381,7 +447,7 @@ const InventoryTable = ({
           
           <Button
             icon={<ReloadOutlined />}
-            onClick={() => fetchData(true)}
+            onClick={() => fetchData(true, 1)}
             loading={loading}
           >
             Refresh
@@ -391,12 +457,17 @@ const InventoryTable = ({
 
       {renderFilterControls()}
 
+      <div style={{ marginBottom: 8, fontSize: 14, color: '#666' }}>
+        Showing {data.length} of {totalCount} items
+        {loadingMore && <span> (loading more...)</span>}
+      </div>
+
       <Table
         columns={columns}
         dataSource={data}
         loading={loading}
         rowKey={rowKey}
-        pagination={pagination}
+        pagination={false}
         onChange={handleTableChange}
         scroll={{ x: true }}
         sticky={true}
@@ -406,6 +477,34 @@ const InventoryTable = ({
         } : undefined}
         {...tableProps}
       />
+      
+      {/* Loading indicator for infinite scroll */}
+      {loadingMore && (
+        <div style={{ textAlign: 'center', padding: '20px' }}>
+          <Spin size="small" />
+          <span style={{ marginLeft: 8 }}>Loading more...</span>
+        </div>
+      )}
+      
+      {/* Manual Load More Button (fallback/debug) */}
+      {hasMore && !loadingMore && data.length > 0 && (
+        <div style={{ textAlign: 'center', padding: '20px' }}>
+          <Button 
+            onClick={() => loadMore()} 
+            size="large"
+            style={{ backgroundColor: '#f0f0f0', borderColor: '#d9d9d9' }}
+          >
+            Load More ({data.length} of {totalCount})
+          </Button>
+        </div>
+      )}
+      
+      {/* End of results indicator */}
+      {!hasMore && data.length > 0 && (
+        <div style={{ textAlign: 'center', padding: '20px', color: '#999' }}>
+          No more items to load ({totalCount} total)
+        </div>
+      )}
     </div>
   );
 };
