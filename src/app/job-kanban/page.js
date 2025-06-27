@@ -11,6 +11,7 @@ import ThemeSwitch from '../components/ThemeSwitch'
 import { CaretDownOutlined, CaretRightOutlined, ExportOutlined, HolderOutlined } from '@ant-design/icons'
 import { useSearchParams } from 'next/navigation'
 import { isTwoCNChar } from 'antd/es/button'
+import { useAuth } from '../../contexts/AuthContext'
 
 const { Content } = Layout
 
@@ -137,6 +138,7 @@ export default function JobKanbanPage() {
   const [columnColors, setColumnColors] = useState({});
   const [newTaskInputs, setNewTaskInputs] = useState({});
   const [editingTask, setEditingTask] = useState({ id: null, value: '' });
+  const { user, userPermissions } = useAuth();
 
   // Handle filters change from JobStatusFilter
   const handleFiltersChange = useCallback((filters) => {
@@ -160,6 +162,14 @@ export default function JobKanbanPage() {
       setColumnColors(generateLaneColors(kanbanField.options.length, kanbanField.options));
     }
   }, [fieldId]);
+
+  console.log("[JobKanbanPage] user", user);
+  console.log("[JobKanbanPage] userPermissions", userPermissions);
+
+  // Check if user has "Ext Design" role
+  const hasExtDesignRole = user?.profile?.roles?.some(role => role.name === "Ext Design");
+  console.log("[JobKanbanPage] hasExtDesignRole", hasExtDesignRole);
+  // console.log("[JobKanbanPage] user.profile?.roles", user?.profile?.roles);
 
   // Fetch jobs based on filter parameters
   const fetchJobs = useCallback(async () => {
@@ -829,15 +839,17 @@ return (
                                         >
                                           <HolderOutlined />
                                         </div>
-                                        <Button
-                                          type="text"
-                                          size="small"
-                                          icon={<ExportOutlined />}
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            window.open(`https://app.jobtread.com/jobs/${job.id}`, '_blank');
-                                          }}
-                                        />
+                                        {!hasExtDesignRole && (
+                                          <Button
+                                            type="text"
+                                            size="small"
+                                            icon={<ExportOutlined />}
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              window.open(`https://app.jobtread.com/jobs/${job.id}`, '_blank');
+                                            }}
+                                          />
+                                        )}
                                         <div
                                           style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', padding: '0 4px' }}
                                           onClick={(e) => {
@@ -953,6 +965,7 @@ return (
                                             ...jobDetails[job.id]
                                           }}
                                           inlineStyle={true}
+                                          hasExtDesignRole={hasExtDesignRole}
                                         />
                                       )}
 

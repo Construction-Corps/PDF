@@ -26,6 +26,7 @@ export const AuthProvider = ({ children }) => {
   const [token, setToken] = useState(null);
   const [visibleMenuItems, setVisibleMenuItems] = useState([]);
   const [menuLoading, setMenuLoading] = useState(false);
+  const [userPermissions, setUserPermissions] = useState(null);
   const router = useRouter();
 
   // Load user from localStorage on initial load
@@ -52,52 +53,72 @@ export const AuthProvider = ({ children }) => {
     return () => { isMounted = false; };
   }, []);
 
-  // Fetch visible menu items when token changes
+  // Fetch visible menu items and permissions when token changes
   useEffect(() => {
-    const fetchMenuItems = async () => {
+    const fetchUserData = async () => {
       if (token) {
         setMenuLoading(true);
         try {
-          const response = await fetch(`${BASE_URL}/api/auth/me/visible-menu-items/`, {
-            method: 'GET',
-            headers: {
-              'Authorization': `Token ${token}`,
-              'Content-Type': 'application/json'
-            }
-          });
+          // Fetch both menu items and permissions in parallel
+          const [menuResponse, permissionsResponse] = await Promise.all([
+            fetch(`${BASE_URL}/api/auth/me/visible-menu-items/`, {
+              method: 'GET',
+              headers: {
+                'Authorization': `Token ${token}`,
+                'Content-Type': 'application/json'
+              }
+            }),
+            fetch(`${BASE_URL}/api/auth/me/permissions/`, {
+              method: 'GET',
+              headers: {
+                'Authorization': `Token ${token}`,
+                'Content-Type': 'application/json'
+              }
+            })
+          ]);
 
-          if (response.status === 401) {
+          if (menuResponse.status === 401 || permissionsResponse.status === 401) {
              const { user: u, token: t, visibleMenuItems: v } = handleUnauthorized(router);
              setUser(u);
              setToken(t);
              setVisibleMenuItems(v);
+             setUserPermissions(null);
              return; // Stop execution after handling 401
           }
 
-          if (!response.ok) {
-             const errorData = await response.json().catch(() => ({})); // Graceful error parsing
-             throw new Error(errorData.message || `HTTP error ${response.status}`);
+          if (!menuResponse.ok) {
+             const errorData = await menuResponse.json().catch(() => ({})); // Graceful error parsing
+             throw new Error(errorData.message || `HTTP error ${menuResponse.status}`);
           }
 
-          const data = await response.json();
-          setVisibleMenuItems(data || []); 
+          const menuData = await menuResponse.json();
+          setVisibleMenuItems(menuData || []); 
+
+          // Handle permissions response
+          if (permissionsResponse.ok) {
+            const permissionsData = await permissionsResponse.json();
+            setUserPermissions(permissionsData);
+          }
+
         } catch (error) { // Catches fetch errors and non-ok response errors
           if (error.message.includes('401')) { // Avoid double handling if already caught
              console.log("401 already handled.")
           } else {
-            console.error('Error fetching menu items:', error);
-            toast.error(`Could not load navigation items: ${error.message}`);
+            console.error('Error fetching user data:', error);
+            toast.error(`Could not load user data: ${error.message}`);
             setVisibleMenuItems([]); // Clear menu items on error
+            setUserPermissions(null);
           }
         } finally {
           setMenuLoading(false);
         }
       } else {
         setVisibleMenuItems([]);
+        setUserPermissions(null);
       }
     };
 
-    fetchMenuItems();
+    fetchUserData();
   }, [token, router]); // Add router as dependency for handleUnauthorized
 
   // Login function
@@ -119,10 +140,10 @@ export const AuthProvider = ({ children }) => {
       }
 
       localStorage.setItem('authToken', data.token);
-      localStorage.setItem('user', JSON.stringify(data.user));
+      localStorage.setItem('user', JSON.stringify(data));
       
       setToken(data.token);
-      setUser(data.user);
+      setUser(data);
       
       toast.success('Login successful');
       return true; 
@@ -176,7 +197,8 @@ export const AuthProvider = ({ children }) => {
       isAuthenticated, 
       loading, // Initial auth check loading
       visibleMenuItems, 
-      menuLoading // Menu specific loading
+      menuLoading, // Menu specific loading
+      userPermissions
     }}>
       {children}
     </AuthContext.Provider>

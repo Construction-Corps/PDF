@@ -88,7 +88,7 @@ const Navigation = () => {
           {isAuthenticated ? (
             <>
               <Menu.Item key="user" disabled style={{ color: '#1890ff' }}>
-                <UserOutlined /> {user?.name || user?.email || 'User'}
+                <UserOutlined /> {user?.user?.name || user?.user?.email || 'User'}
               </Menu.Item>
               <Menu.Item key="logout" onClick={logout}>
                 <LogoutOutlined /> Logout

@@ -34,7 +34,7 @@ const debouncedAddComment = debounce(async (jobId, comment) => {
   }
 }, 500);
 
-const JobTile = ({ job, inlineStyle = false }) => {
+const JobTile = ({ job, inlineStyle = false, hasExtDesignRole = false }) => {
   const [jobDetails, setJobDetails] = useState(null);
   const [activeModal, setActiveModal] = useState(null);
   const [newComment, setNewComment] = useState('');
@@ -141,14 +141,14 @@ const JobTile = ({ job, inlineStyle = false }) => {
           </>
         )}
         
-        {/* {!inlineStyle && ( */}
+        {!hasExtDesignRole && (
           <div className="modal-buttons">
             <Button onClick={() => setActiveModal('activity')}>Activity</Button>
             <Button onClick={() => setActiveModal('dlogs')}>D-Logs</Button>
             <Button onClick={() => setActiveModal('tasks')}>Tasks</Button>
             <Button onClick={() => setActiveModal('docs')}>Docs</Button>
           </div>
-        {/* )} */}
+        )}
         
         {activeModal === 'activity' && <ActivityModal 
           job={jobDetails}
