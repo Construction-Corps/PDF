@@ -16,6 +16,7 @@ const CategoriesPage = () => {
   const [form] = Form.useForm();
   const [editingCell, setEditingCell] = useState(null);
   const [parentSearchValue, setParentSearchValue] = useState('');
+  const [dataManager, setDataManager] = useState(null);
 
   useEffect(() => {
     fetchSupportingData();
@@ -45,6 +46,9 @@ const CategoriesPage = () => {
     try {
       const newCategory = await createInventory('categories', { name });
       setCategories(prev => [...prev, newCategory]);
+      if (dataManager) {
+        dataManager.addItem(newCategory);
+      }
       setParentSearchValue('');
       return newCategory.id;
     } catch (error) {
@@ -81,10 +85,16 @@ const CategoriesPage = () => {
         setCategories(prev => prev.map(cat => 
           cat.id === editingCategory.id ? updatedCategory : cat
         ));
+        if (dataManager) {
+          dataManager.updateItem(editingCategory.id, updatedCategory);
+        }
       } else {
         const newCategory = await createInventory('categories', values);
         message.success('Category created successfully');
         setCategories(prev => [...prev, newCategory]);
+        if (dataManager) {
+          dataManager.addItem(newCategory);
+        }
       }
       handleCancel();
       fetchSupportingData();
@@ -102,6 +112,9 @@ const CategoriesPage = () => {
       await deleteInventory('categories', id);
       message.success('Category deleted successfully');
       setCategories(prev => prev.filter(cat => cat.id !== id));
+      if (dataManager) {
+        dataManager.removeItem(id);
+      }
       fetchSupportingData();
     } catch (error) {
       if (error.message.includes('referenced')) {
@@ -120,7 +133,10 @@ const CategoriesPage = () => {
         const updatedCategory = await updateInventory('categories', record.id, { parent: newValue });
         message.success('Category updated');
         setCategories(prev => prev.map(cat => cat.id === record.id ? updatedCategory : cat));
-        fetchSupportingData(); // Refresh to get updated parent_name
+        if (dataManager) {
+          dataManager.updateItem(record.id, updatedCategory);
+        }
+        fetchSupportingData();
       } catch (error) {
         if (error.message.includes('circular dependency')) {
           message.error('Cannot create circular dependency - a category cannot be its own ancestor');
@@ -134,6 +150,9 @@ const CategoriesPage = () => {
         const updatedCategory = await updateInventory('categories', record.id, { [dataIndex]: newValue });
         message.success('Category updated');
         setCategories(prev => prev.map(cat => cat.id === record.id ? updatedCategory : cat));
+        if (dataManager) {
+          dataManager.updateItem(record.id, updatedCategory);
+        }
       } catch (error) {
         message.error('Update failed');
       }
@@ -156,9 +175,8 @@ const CategoriesPage = () => {
 
   const editableParentRender = () => (text, record) => {
     if (editingCell && editingCell.id === record.id && editingCell.dataIndex === 'parent') {
-      // Filter out self and descendants to prevent circular dependencies
       const availableParents = categories.filter(cat => {
-        if (cat.id === record.id) return false; // Can't be parent of itself
+        if (cat.id === record.id) return false;
         return cat.name.toLowerCase().includes(parentSearchValue.toLowerCase());
       });
       
@@ -323,10 +341,9 @@ const CategoriesPage = () => {
           searchPlaceholder="Search categories by name, parent category..."
           extraFilters={extraFilters}
           additionalActions={additionalActions}
-          data={categories}
+          onDataChange={setDataManager}
         />
 
-        {/* Add/Edit Category Modal */}
         <Modal
           title={editingCategory ? 'Edit Category' : 'Add Category'}
           open={isModalVisible}

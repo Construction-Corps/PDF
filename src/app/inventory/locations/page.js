@@ -13,6 +13,7 @@ const LocationsPage = () => {
   const [editingLocation, setEditingLocation] = useState(null);
   const [form] = Form.useForm();
   const [editingCell, setEditingCell] = useState(null);
+  const [dataManager, setDataManager] = useState(null);
 
   useEffect(() => {
     fetchSupportingData();
@@ -52,10 +53,16 @@ const LocationsPage = () => {
         setLocations(prev => prev.map(loc => 
           loc.id === editingLocation.id ? updatedLocation : loc
         ));
+        if (dataManager) {
+          dataManager.updateItem(editingLocation.id, updatedLocation);
+        }
       } else {
         const newLocation = await createInventory('locations', values);
         message.success('Location created successfully');
         setLocations(prev => [...prev, newLocation]);
+        if (dataManager) {
+          dataManager.addItem(newLocation);
+        }
       }
       handleCancel();
       fetchSupportingData();
@@ -69,6 +76,9 @@ const LocationsPage = () => {
       await deleteInventory('locations', id);
       message.success('Location deleted successfully');
       setLocations(prev => prev.filter(loc => loc.id !== id));
+      if (dataManager) {
+        dataManager.removeItem(id);
+      }
       fetchSupportingData();
     } catch (error) {
       message.error('Failed to delete location');
@@ -82,6 +92,9 @@ const LocationsPage = () => {
       const updatedLocation = await updateInventory('locations', record.id, { [dataIndex]: newValue });
       message.success('Location updated');
       setLocations(prev => prev.map(l => l.id === record.id ? updatedLocation : l));
+      if (dataManager) {
+        dataManager.updateItem(record.id, updatedLocation);
+      }
     } catch (error) {
       message.error('Update failed');
     }
@@ -164,7 +177,7 @@ const LocationsPage = () => {
           columns={columns}
           searchPlaceholder="Search locations by name, description..."
           additionalActions={additionalActions}
-          data={locations}
+          onDataChange={setDataManager}
         />
 
         {/* Add/Edit Location Modal */}

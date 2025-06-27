@@ -13,6 +13,7 @@ const QrCodesPage = () => {
   const [items, setItems] = useState([]);
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [selectedQrCode, setSelectedQrCode] = useState(null);
+  const [dataManager, setDataManager] = useState(null);
 
   useEffect(() => {
     fetchSupportingData();
@@ -42,6 +43,10 @@ const QrCodesPage = () => {
       const newQrCode = await createInventory('qrcodes', {});
       message.success('QR Code generated successfully');
       setQrcodes(prev => [...prev, newQrCode]);
+      // Add to table data
+      if (dataManager) {
+        dataManager.addItem(newQrCode);
+      }
     } catch (error) {
       message.error('Failed to generate QR Code');
     }
@@ -52,6 +57,10 @@ const QrCodesPage = () => {
       await deleteInventory('qrcodes', id);
       message.success('QR Code deleted successfully');
       setQrcodes(prev => prev.filter(qr => qr.id !== id));
+      // Remove from table data
+      if (dataManager) {
+        dataManager.removeItem(id);
+      }
     } catch (error) {
       message.error('Failed to delete QR Code');
     }
@@ -177,7 +186,7 @@ const QrCodesPage = () => {
           searchPlaceholder="Search QR codes by ID..."
           extraFilters={extraFilters}
           additionalActions={additionalActions}
-          data={qrcodes}
+          onDataChange={setDataManager}
         />
 
         {/* QR Code Display Modal */}
