@@ -153,7 +153,7 @@ const ScanLogsPage = () => {
     {
       key: 'user',
       label: 'User',
-      type: 'select',
+      type: 'multiselect',
       options: users.map(u => ({
         value: u.id,
         label: u.first_name || u.last_name ? 
@@ -164,7 +164,7 @@ const ScanLogsPage = () => {
     {
       key: 'item',
       label: 'Item',
-      type: 'select',
+      type: 'multiselect',
       options: items.map(i => ({ value: i.id, label: i.name }))
     },
     {

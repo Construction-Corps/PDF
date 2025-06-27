@@ -45,7 +45,7 @@ const InventoryTable = ({
           setData(prev => prev.map(item => item.id === id ? updatedItem : item));
         },
         addItem: (newItem) => {
-          setData(prev => [...prev, newItem]);
+          setData(prev => [newItem, ...prev]);
           setPagination(prev => ({ ...prev, total: prev.total + 1 }));
         },
         removeItem: (id) => {
@@ -57,36 +57,50 @@ const InventoryTable = ({
     }
   }, [data, onDataChange]);
 
+  const mapSortField = (field) => {
+    const fieldMapping = {
+      'storage_location': 'storage_location__name',
+      'category': 'category__name', 
+      'user': 'user__email',
+      'item': 'item__name',
+      'last_known_location': 'last_known_location__name'
+    };
+    
+    return fieldMapping[field] || field;
+  };
+
   const buildApiParams = useCallback(() => {
-    const params = new URLSearchParams();
+    const params = [];
     
-    // Pagination
-    params.append('page', pagination.current);
-    params.append('page_size', pagination.pageSize);
+    params.push(`page=${pagination.current}`);
+    params.push(`page_size=${pagination.pageSize}`);
     
-    // Search
     if (searchText.trim()) {
-      params.append('search', searchText.trim());
+      params.push(`search=${encodeURIComponent(searchText.trim())}`);
     }
     
-    // Filters
     Object.entries(filters).forEach(([key, value]) => {
       if (value !== undefined && value !== null && value !== '') {
-        if (Array.isArray(value)) {
-          value.forEach(v => params.append(key, v));
-        } else {
-          params.append(key, value);
+        if (Array.isArray(value) && value.length > 0) {
+          // For arrays, use Django's __in format with comma-separated values
+          if (value.length === 1) {
+            params.push(`${key}=${encodeURIComponent(value[0])}`);
+          } else {
+            params.push(`${key}__in=${value.join(',')}`);
+          }
+        } else if (!Array.isArray(value)) {
+          params.push(`${key}=${encodeURIComponent(value)}`);
         }
       }
     });
     
-    // Sorting
     if (sorter.field) {
-      const orderField = sorter.order === 'descend' ? `-${sorter.field}` : sorter.field;
-      params.append('ordering', orderField);
+      const mappedField = mapSortField(sorter.field);
+      const orderField = sorter.order === 'descend' ? `-${mappedField}` : mappedField;
+      params.push(`ordering=${encodeURIComponent(orderField)}`);
     }
     
-    return params;
+    return params.join('&');
   }, [pagination.current, pagination.pageSize, searchText, filters, sorter]);
 
   const fetchData = useCallback(async (resetPagination = false) => {
@@ -96,60 +110,45 @@ const InventoryTable = ({
         setPagination(prev => ({ ...prev, current: 1 }));
       }
       
-      // For simple cases without filters/search, use existing InventoryApi method
-      if (!searchText.trim() && Object.keys(filters).length === 0 && !sorter.field) {
-        const result = await fetchInventory(resource);
+      const params = buildApiParams();
+      
+      const authToken = typeof localStorage !== 'undefined' ? localStorage.getItem('authToken') : null;
+      const headers = { 
+        "Content-Type": "application/json" 
+      };
+      
+      if (authToken) {
+        headers["Authorization"] = `Token ${authToken}`;
+      }
+      
+      const response = await fetch(`https://ccbe.onrender.com/api/inventory/${resource}/?${params}`, {
+        method: 'GET',
+        headers: headers
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      const result = await response.json();
+      
+      if (result.results) {
+        setData(result.results);
+        setPagination(prev => ({
+          ...prev,
+          total: result.count,
+          current: resetPagination ? 1 : prev.current
+        }));
+      } else {
         setData(result);
         setPagination(prev => ({
           ...prev,
           total: result.length,
           current: resetPagination ? 1 : prev.current
         }));
-      } else {
-        // For advanced cases with filters/search, use direct API call but with proper auth
-        const params = buildApiParams();
-        
-        // Get auth token like InventoryApi does
-        const authToken = typeof localStorage !== 'undefined' ? localStorage.getItem('authToken') : null;
-        const headers = { 
-          "Content-Type": "application/json" 
-        };
-        
-        if (authToken) {
-          headers["Authorization"] = `Token ${authToken}`;
-        }
-        
-        const response = await fetch(`https://ccbe.onrender.com/api/inventory/${resource}/?${params}`, {
-          method: 'GET',
-          headers: headers
-        });
-        
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        
-        const result = await response.json();
-        
-        // Handle both paginated and non-paginated responses
-        if (result.results) {
-          setData(result.results);
-          setPagination(prev => ({
-            ...prev,
-            total: result.count,
-            current: resetPagination ? 1 : prev.current
-          }));
-        } else {
-          setData(result);
-          setPagination(prev => ({
-            ...prev,
-            total: result.length,
-            current: resetPagination ? 1 : prev.current
-          }));
-        }
       }
     } catch (error) {
       console.error('Failed to fetch data:', error);
-      // Fallback to basic fetchInventory if advanced call fails
       try {
         const fallbackData = await fetchInventory(resource);
         setData(fallbackData);
@@ -167,7 +166,6 @@ const InventoryTable = ({
     }
   }, [resource, buildApiParams, searchText, filters, sorter]);
 
-  // Debounced search
   const debouncedSearch = useMemo(
     () => debounce((value) => {
       setSearchText(value);
@@ -184,7 +182,6 @@ const InventoryTable = ({
     setPagination(newPagination);
     setSorter(tableSorter);
     
-    // Convert Antd table filters to our filter format
     const newFilters = {};
     Object.entries(tableFilters).forEach(([key, value]) => {
       if (value && value.length > 0) {
@@ -348,7 +345,6 @@ const InventoryTable = ({
 
   return (
     <div>
-      {/* Header Controls */}
       <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
         {additionalActions && (
           <div style={{ display: 'flex', gap: 8 }}>
@@ -393,10 +389,8 @@ const InventoryTable = ({
         </div>
       </div>
 
-      {/* Filter Controls */}
       {renderFilterControls()}
 
-      {/* Table */}
       <Table
         columns={columns}
         dataSource={data}

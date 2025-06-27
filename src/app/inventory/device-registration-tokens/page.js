@@ -105,7 +105,7 @@ const DeviceRegistrationTokensPage = () => {
     {
       key: 'user',
       label: 'User',
-      type: 'select',
+      type: 'multiselect',
       options: users.map(u => ({
         value: u.id,
         label: u.first_name || u.last_name ? 

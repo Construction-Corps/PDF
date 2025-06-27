@@ -636,7 +636,7 @@ const ItemsPage = () => {
     {
       key: 'category',
       label: 'Category',
-      type: 'select',
+      type: 'multiselect',
       options: categories.map(cat => ({ value: cat.id, label: cat.name }))
     },
     {
@@ -659,7 +659,7 @@ const ItemsPage = () => {
     {
       key: 'storage_location',
       label: 'Storage Location',
-      type: 'select',
+      type: 'multiselect',
       options: locations.map(loc => ({ value: loc.id, label: loc.name }))
     },
     {
