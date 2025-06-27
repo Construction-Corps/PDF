@@ -237,13 +237,10 @@ const InventoryTable = ({
     []
   );
 
+  // Reset data when search, filters, or sorting changes, AND initial load
   useEffect(() => {
     fetchData(true, 1);
-  }, [searchText, filters, sorter]);
-
-  useEffect(() => {
-    fetchData(true, 1);
-  }, []);
+  }, [fetchData]);
 
   const handleTableChange = (newPagination, tableFilters, tableSorter) => {
     setSorter(tableSorter);
