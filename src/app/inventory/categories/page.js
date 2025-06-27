@@ -79,8 +79,14 @@ const CategoriesPage = () => {
   const handleOk = async () => {
     try {
       const values = await form.validateFields();
+      // Ensure parent is null if not selected (instead of undefined)
+      const payload = {
+        ...values,
+        parent: values.parent || null
+      };
+      
       if (editingCategory) {
-        const updatedCategory = await updateInventory('categories', editingCategory.id, values);
+        const updatedCategory = await updateInventory('categories', editingCategory.id, payload);
         message.success('Category updated successfully');
         setCategories(prev => prev.map(cat => 
           cat.id === editingCategory.id ? updatedCategory : cat
@@ -89,7 +95,7 @@ const CategoriesPage = () => {
           dataManager.updateItem(editingCategory.id, updatedCategory);
         }
       } else {
-        const newCategory = await createInventory('categories', values);
+        const newCategory = await createInventory('categories', payload);
         message.success('Category created successfully');
         setCategories(prev => [...prev, newCategory]);
         if (dataManager) {
@@ -128,9 +134,12 @@ const CategoriesPage = () => {
   const handleCellSave = async (record, dataIndex, newValue) => {
     setEditingCell(null);
     if (dataIndex === 'parent') {
-      if (newValue === record.parent) return;
+      const currentParent = record.parent || null;
+      const newParent = newValue || null;
+      if (newParent === currentParent) return;
+      
       try {
-        const updatedCategory = await updateInventory('categories', record.id, { parent: newValue });
+        const updatedCategory = await updateInventory('categories', record.id, { parent: newParent });
         message.success('Category updated');
         setCategories(prev => prev.map(cat => cat.id === record.id ? updatedCategory : cat));
         if (dataManager) {
