@@ -171,6 +171,26 @@ export default function JobKanbanPage() {
   console.log("[JobKanbanPage] hasExtDesignRole", hasExtDesignRole);
   // console.log("[JobKanbanPage] user.profile?.roles", user?.profile?.roles);
 
+  // Utility function to ensure no job appears in multiple columns
+  const deduplicateColumns = useCallback((columnsToCheck) => {
+    const seenJobIds = new Set();
+    const deduplicatedColumns = {};
+    
+    // Process columns in order and remove duplicates
+    Object.entries(columnsToCheck).forEach(([columnId, jobs]) => {
+      deduplicatedColumns[columnId] = jobs.filter(job => {
+        if (seenJobIds.has(job.id)) {
+          console.warn(`Duplicate job found: ${job.id} in column ${columnId}, removing duplicate`);
+          return false;
+        }
+        seenJobIds.add(job.id);
+        return true;
+      });
+    });
+    
+    return deduplicatedColumns;
+  }, []);
+
   // Fetch jobs based on filter parameters
   const fetchJobs = useCallback(async () => {
     setLoading(true);
@@ -301,7 +321,19 @@ export default function JobKanbanPage() {
     const data = await fetchJobTread(jobsQuery);
 
     if (data?.organization?.jobs?.nodes) {
-      setJobs(data.organization.jobs.nodes);
+      // Deduplicate jobs by ID to prevent duplicate jobs in state
+      const jobsArray = data.organization.jobs.nodes;
+      const seenJobIds = new Set();
+      const deduplicatedJobs = jobsArray.filter(job => {
+        if (seenJobIds.has(job.id)) {
+          console.warn(`Duplicate job found in API response: ${job.id}, removing duplicate`);
+          return false;
+        }
+        seenJobIds.add(job.id);
+        return true;
+      });
+      
+      setJobs(deduplicatedJobs);
     }
   } catch (error) {
     console.error("Error fetching jobs:", error);
@@ -466,6 +498,7 @@ useEffect(() => {
   });
 
   // Add Unassigned column if there are unassigned jobs
+  let finalColumns;
   if (unassignedJobs.length > 0) {
     // Reorder columns to have Unassigned first
     const orderedColumns = { "Unassigned": unassignedJobs };
@@ -473,11 +506,15 @@ useEffect(() => {
     Object.entries(newColumns).forEach(([key, value]) => {
       orderedColumns[key] = value;
     });
-    setColumns(orderedColumns);
+    finalColumns = orderedColumns;
   } else {
-    setColumns(newColumns);
+    finalColumns = newColumns;
   }
-}, [stageOptions, jobs, fieldId, filterParams]);
+
+  // Apply deduplication safeguard before setting columns
+  const deduplicatedFinalColumns = deduplicateColumns(finalColumns);
+  setColumns(deduplicatedFinalColumns);
+}, [stageOptions, jobs, fieldId, filterParams, deduplicateColumns]);
 
 // Fetch jobs when filters change
 useEffect(() => {
@@ -525,40 +562,56 @@ const onDragEnd = async (result) => {
   // Don't allow drops outside of defined columns
   if (!columns[destination.droppableId]) return;
 
+  // Store original state for rollback
+  const originalColumns = { ...columns };
+
   try {
-    // Optimistic UI update
+    // Find the job being moved
     const sourceColumn = columns[source.droppableId];
     const destColumn = columns[destination.droppableId];
     const job = sourceColumn.find(job => job.id === draggableId);
 
+    if (!job) {
+      console.error(`Job ${draggableId} not found in source column ${source.droppableId}`);
+      return;
+    }
+
+    // Create new columns with the job moved
     const newSourceColumn = [...sourceColumn];
     newSourceColumn.splice(source.index, 1);
 
     const newDestColumn = [...destColumn];
     newDestColumn.splice(destination.index, 0, job);
 
-    setColumns({
+    // Apply optimistic update with deduplication safeguard
+    const updatedColumns = {
       ...columns,
       [source.droppableId]: newSourceColumn,
       [destination.droppableId]: newDestColumn
-    });
+    };
+
+    // Ensure no duplicates exist across all columns
+    const deduplicatedColumns = deduplicateColumns(updatedColumns);
+    setColumns(deduplicatedColumns);
 
     // Update job stage in API
-    const updatedJob = await updateJobStage(draggableId, destination.droppableId);
+    await updateJobStage(draggableId, destination.droppableId);
 
-    // If API update successful, update job in state
-    if (updatedJob) {
-      setJobs(prevJobs =>
-        prevJobs.map(prevJob =>
-          prevJob.id === draggableId ? updatedJob : prevJob
-        )
-      );
-      message.success(`Job moved to ${destination.droppableId}`);
-    }
+    // If API update successful (didn't throw), apply final deduplication
+    // Double-check for any duplicates after API success
+    setColumns(prevColumns => deduplicateColumns(prevColumns));
+    
+    message.success(`Job moved to ${destination.droppableId}`);
   } catch (error) {
-    // On error, revert to previous state
+    console.error("Error in drag and drop:", error);
+    // On error, rollback to original state
+    setColumns(originalColumns);
     message.error("Failed to update job stage");
-    fetchJobs(); // Reload jobs to get correct state
+    
+    // Refresh data to ensure consistency
+    setTimeout(() => {
+      fetchJobs();
+    }, 500);
   }
 };
 
@@ -605,7 +658,7 @@ const handleAddTask = useCallback(async (jobId, taskName) => {
       setNewTaskInputs(prev => ({ ...prev, [jobId]: '' })); // Clear the input
 
       setJobs(prevJobs => {
-        return prevJobs.map(job => {
+        const updatedJobs = prevJobs.map(job => {
           if (job.id === jobId) {
             const newTask = {
               id: createdTaskData.id,
@@ -625,6 +678,17 @@ const handleAddTask = useCallback(async (jobId, taskName) => {
           }
           return job;
         });
+        
+        // Ensure no duplicate jobs after update
+        const seenJobIds = new Set();
+        return updatedJobs.filter(job => {
+          if (seenJobIds.has(job.id)) {
+            console.warn(`Duplicate job found after task update: ${job.id}, removing duplicate`);
+            return false;
+          }
+          seenJobIds.add(job.id);
+          return true;
+        });
       });
     } else {
       console.error("Failed to add task, unexpected response:", result);
@@ -633,8 +697,6 @@ const handleAddTask = useCallback(async (jobId, taskName) => {
   } catch (error) {
     console.error("Error adding task:", error);
     message.error({ content: `Error adding task: ${error.message}`, key: `add-task-${jobId}`, duration: 3 });
-  } finally {
-    setTimeout(fetchJobs, 0);
   }
 }, [fetchJobs]);
 
@@ -688,7 +750,7 @@ const handleUpdateTask = useCallback(async (jobId, taskId, updatePayload, origin
       }
 
       setJobs(prevJobs => {
-        return prevJobs.map(job => {
+        const updatedJobs = prevJobs.map(job => {
           if (job.id === jobId) {
             const updatedTasks = job.tasks.nodes.map(task => {
               if (task.id === taskId) {
@@ -699,6 +761,17 @@ const handleUpdateTask = useCallback(async (jobId, taskId, updatePayload, origin
             return { ...job, tasks: { ...job.tasks, nodes: updatedTasks } };
           }
           return job;
+        });
+        
+        // Ensure no duplicate jobs after update
+        const seenJobIds = new Set();
+        return updatedJobs.filter(job => {
+          if (seenJobIds.has(job.id)) {
+            console.warn(`Duplicate job found after task update: ${job.id}, removing duplicate`);
+            return false;
+          }
+          seenJobIds.add(job.id);
+          return true;
         });
       });
     } else {
@@ -714,8 +787,6 @@ const handleUpdateTask = useCallback(async (jobId, taskId, updatePayload, origin
      if (updateKey === 'name') {
        setEditingTask({ id: null, value: '' });
      }
-  } finally {
-    setTimeout(fetchJobs, 0);
   }
 }, [fetchJobs]);
 
