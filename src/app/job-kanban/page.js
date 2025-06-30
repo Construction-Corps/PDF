@@ -294,23 +294,25 @@ export default function JobKanbanPage() {
                         "isToDo",
                         "=",
                         "true"
-                      ],
-                      [
-                        "completed",
-                        "=",
-                        0
                       ]
                     ]
                   },
-                  "size": "3"
+                  "size": "5",
+                                     "sortBy": [
+                     {
+                       "field": "createdAt",
+                       "order": "asc"
+                     }
+                   ]
                 },
               
               "nodes": {
                 "id": {},
                 "name": {},
                 "progress": {},
-                "isToDo": {},
-                "progress": {}
+                // "isToDo": {},
+                "createdAt": {},
+                // "progress": {}
               }
             }
           }
@@ -667,7 +669,7 @@ const handleAddTask = useCallback(async (jobId, taskName) => {
               progress: createdTaskData.progress !== undefined ? createdTaskData.progress : 0,
             };
             const existingNodes = Array.isArray(job.tasks?.nodes) ? job.tasks.nodes : [];
-            const updatedTasksNodes = [newTask, ...existingNodes];
+            const updatedTasksNodes = [...existingNodes, newTask];
             return {
               ...job,
               tasks: {
@@ -951,7 +953,9 @@ return (
                                           <div style={{ marginBottom: '4px' }}>
                                             <strong>To-Do:</strong>
                                             <ul style={{ margin: '2px 0 0 0', padding: 0, listStyleType: 'none' }}>
-                                              {job.tasks.nodes.map(task => (
+                                              {job.tasks.nodes
+                                                .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt)) // Sort by createdAt, oldest first (newest at bottom)
+                                                .map(task => (
                                                 <li key={task.id} style={{ display: 'flex', alignItems: 'center', gap: '4px', height: '24px' /* Ensure consistent height */ }}>
                                                   <Checkbox
                                                      checked={!!task.progress} // Use progress status (0 = false, 1 = true)
