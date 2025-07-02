@@ -831,6 +831,7 @@ return (
         customFieldId={fieldId}
         defaultSelections={defaultSelections()}
         hideFilterOptions={['22NwWybgjBTW']}
+        skipStorageLoad={hasExtDesignRole}
       />
 
       <KanbanContainer>

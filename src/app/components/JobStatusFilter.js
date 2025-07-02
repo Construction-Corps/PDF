@@ -99,7 +99,8 @@ const JobStatusFilter = ({
   defaultSelections = null,
   initialSelections = null,
   extraButtons = null,
-  hideFilterOptions = []
+  hideFilterOptions = [],
+  skipStorageLoad = false // Skip loading from localStorage, always use defaults
 }) => {
   const { isMobile } = useWindowSize();
   const [open, setOpen] = useState(false);
@@ -143,10 +144,10 @@ const JobStatusFilter = ({
   useEffect(() => {
     setFilterState(prev => ({
       ...prev,
-      search: loadFromStorage('jobSearchTerm', ''),
-      sort: loadFromStorage('jobSortOptions', { field: "createdAt", order: "desc" })
+      search: skipStorageLoad ? '' : loadFromStorage('jobSearchTerm', ''),
+      sort: skipStorageLoad ? { field: "createdAt", order: "desc" } : loadFromStorage('jobSortOptions', { field: "createdAt", order: "desc" })
     }));
-  }, []);
+  }, [skipStorageLoad]);
   
   // Fetch field data
   useEffect(() => {
@@ -193,7 +194,7 @@ const JobStatusFilter = ({
           fields.forEach(field => {
             const storageKey = `jobFilter_${field.id}`;
             
-            // Load values from localStorage
+            // Load values from localStorage or use defaults
             let defaultValues = [];
             // First, apply hardcoded fallback defaults for the 'Stage' field.
             if (field.name === 'Stage') {
@@ -211,7 +212,8 @@ const JobStatusFilter = ({
               }
             }
             
-            const values = loadFromStorage(storageKey, defaultValues);
+            // Use defaults directly if skipStorageLoad is true, otherwise load from storage
+            const values = skipStorageLoad ? defaultValues : loadFromStorage(storageKey, defaultValues);
             
             // Update filterState for this field using only its ID as the key
             setFilterState(prev => ({
@@ -264,7 +266,9 @@ const JobStatusFilter = ({
         ? currentValues.filter(v => v !== value)
         : [...currentValues, value];
       
-      saveToStorage(`jobFilter_${fieldId}`, newValues);
+      if (!skipStorageLoad) {
+        saveToStorage(`jobFilter_${fieldId}`, newValues);
+      }
       
       return { ...prev, [fieldId]: newValues }; // Only use ID as key
     });
@@ -273,7 +277,9 @@ const JobStatusFilter = ({
   // Select all values for a field
   const selectAllValues = (fieldId, stateKey, options) => {
     setFilterState(prev => {
-      saveToStorage(`jobFilter_${fieldId}`, options);
+      if (!skipStorageLoad) {
+        saveToStorage(`jobFilter_${fieldId}`, options);
+      }
       return { ...prev, [fieldId]: [...options] }; // Only use ID as key
     });
   };
@@ -281,7 +287,9 @@ const JobStatusFilter = ({
   // Clear all values for a field
   const clearValues = (fieldId, stateKey) => {
     setFilterState(prev => {
-      saveToStorage(`jobFilter_${fieldId}`, []);
+      if (!skipStorageLoad) {
+        saveToStorage(`jobFilter_${fieldId}`, []);
+      }
       return { ...prev, [fieldId]: [] }; // Only use ID as key
     });
   };
@@ -291,14 +299,18 @@ const JobStatusFilter = ({
       ...prev,
       search: value
     }));
-    saveToStorage('jobSearchTerm', value);
+    if (!skipStorageLoad) {
+      saveToStorage('jobSearchTerm', value);
+    }
   };
   
   // Handle sort field change
   const handleSortFieldChange = (field) => {
     setFilterState(prev => {
       const newSort = { ...prev.sort, field };
-      saveToStorage('jobSortOptions', newSort);
+      if (!skipStorageLoad) {
+        saveToStorage('jobSortOptions', newSort);
+      }
       return {
         ...prev,
         sort: newSort
@@ -313,7 +325,9 @@ const JobStatusFilter = ({
         ...prev.sort,
         order: prev.sort.order === 'asc' ? 'desc' : 'asc'
       };
-      saveToStorage('jobSortOptions', newSort);
+      if (!skipStorageLoad) {
+        saveToStorage('jobSortOptions', newSort);
+      }
       return {
         ...prev,
         sort: newSort
