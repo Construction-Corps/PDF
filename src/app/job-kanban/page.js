@@ -138,7 +138,7 @@ export default function JobKanbanPage() {
   const [columnColors, setColumnColors] = useState({});
   const [newTaskInputs, setNewTaskInputs] = useState({});
   const [editingTask, setEditingTask] = useState({ id: null, value: '' });
-  const { user, userPermissions } = useAuth();
+  const { user, userPermissions, loading: authLoading } = useAuth();
 
   // Handle filters change from JobStatusFilter
   const handleFiltersChange = useCallback((filters) => {
@@ -825,14 +825,16 @@ return (
 
       </div>
 
-      <JobStatusFilter
-        onFiltersChange={handleFiltersChange}
-        onFieldOptionsLoaded={handleFieldOptionsLoaded}
-        customFieldId={fieldId}
-        defaultSelections={defaultSelections()}
-        hideFilterOptions={['22NwWybgjBTW']}
-        skipStorageLoad={hasExtDesignRole}
-      />
+      {!authLoading && (
+        <JobStatusFilter
+          onFiltersChange={handleFiltersChange}
+          onFieldOptionsLoaded={handleFieldOptionsLoaded}
+          customFieldId={fieldId}
+          defaultSelections={defaultSelections()}
+          hideFilterOptions={['22NwWybgjBTW']}
+          skipStorageLoad={hasExtDesignRole}
+        />
+      )}
 
       <KanbanContainer>
         {loading ? (
