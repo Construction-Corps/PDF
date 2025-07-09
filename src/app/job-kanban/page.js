@@ -194,6 +194,7 @@ export default function JobKanbanPage() {
 
   // Fetch jobs based on filter parameters
   const fetchJobs = useCallback(async () => {
+    console.log('🔄 fetchJobs called - this might override local state');
     setLoading(true);
     try {
       // Collect all fields that need to be included in the query
@@ -500,6 +501,7 @@ const toggleExpandJob = useCallback((jobId) => {
 
 // Organize jobs into columns by stage
 useEffect(() => {
+  console.log('🏗️ Column organization running with metadata:', Object.keys(jobMetadata).length, 'jobs');
   if (stageOptions.length === 0 || jobs.length === 0) return;
 
   const newColumns = {};
@@ -692,6 +694,7 @@ const onDragEnd = async (result) => {
         updatedAt: metadata.updatedAt
       };
     });
+    console.log('🔄 Updating local metadata after drag:', updatedMetadata);
     setJobMetadata(updatedMetadata);
 
     // If API update successful (didn't throw), apply final deduplication
@@ -702,12 +705,14 @@ const onDragEnd = async (result) => {
   } catch (error) {
     console.error("Error in drag and drop:", error);
     // On error, rollback to original state
+    console.log('❌ Drag operation failed, rolling back');
     setColumns(originalColumns);
     setJobMetadata(originalJobMetadata);
     message.error("Failed to update job stage");
     
     // Refresh data to ensure consistency
     setTimeout(() => {
+      console.log('🔄 Refreshing data due to drag error');
       fetchJobs();
     }, 500);
   }
