@@ -698,8 +698,10 @@ const onDragEnd = async (result) => {
     jobsToUpdate.forEach(({ jobId, stage, metadata }) => {
       updatedMetadata[jobId] = {
         stage: stage,
-        order: metadata.order,
-        updatedAt: metadata.updatedAt
+        metadata: {
+          order: metadata.order,
+          updatedAt: metadata.updatedAt
+        }
       };
     });
     console.log('🔄 Updating local metadata after drag:', updatedMetadata);
