@@ -143,13 +143,11 @@ export default function JobKanbanPage() {
 
   // Handle filters change from JobStatusFilter
   const handleFiltersChange = useCallback((filters) => {
-    console.log("Filters changed:", filters);
     setFilterParams(filters);
   }, []);
 
   // Handle field options loaded
   const handleFieldOptionsLoaded = useCallback((options) => {
-    console.log("Field options loaded:", options);
 
     // Find our kanban field in the data
     const kanbanField = options.fieldsData?.find(f => f.id === fieldId);
@@ -164,12 +162,8 @@ export default function JobKanbanPage() {
     }
   }, [fieldId]);
 
-  console.log("[JobKanbanPage] user", user);
-  console.log("[JobKanbanPage] userPermissions", userPermissions);
-
   // Check if user has "Ext Design" role
   const hasExtDesignRole = user?.profile?.roles?.some(role => role.name === "Ext Design");
-  console.log("[JobKanbanPage] hasExtDesignRole", hasExtDesignRole);
   // console.log("[JobKanbanPage] user.profile?.roles", user?.profile?.roles);
 
   // Utility function to ensure no job appears in multiple columns
@@ -509,8 +503,6 @@ useEffect(() => {
 
   // Check if filter has selections for this fieldId
   const hasFieldSelections = filterParams[fieldId] && filterParams[fieldId].length > 0;
-  console.log("[JobKanbanPage] fieldName", fieldName);
-  console.log("[JobKanbanPage] filterParams", filterParams);
 
   // Use selected options if available, otherwise use all stageOptions
   const displayOptions = hasFieldSelections ? filterParams[fieldId] : stageOptions;
@@ -557,6 +549,15 @@ useEffect(() => {
 
   // Apply saved order to each column
   Object.entries(finalColumns).forEach(([stage, jobs]) => {
+    console.log(`🔄 Sorting ${stage} with ${jobs.length} jobs, metadata available for:`, 
+      jobs.map(job => ({ 
+        id: job.id.slice(-4), 
+        hasMetadata: !!jobMetadata[job.id],
+        order: jobMetadata[job.id]?.metadata?.order,
+        metaStage: jobMetadata[job.id]?.stage 
+      }))
+    );
+    
     // Sort jobs by their saved order, fallback to creation time for jobs without order
     finalColumns[stage] = jobs.sort((a, b) => {
       const aMetadata = jobMetadata[a.id];
@@ -564,7 +565,9 @@ useEffect(() => {
       
       // If both have order metadata for this stage, use it
       if (aMetadata?.stage === stage && bMetadata?.stage === stage) {
-        return (aMetadata.metadata?.order || 0) - (bMetadata.metadata?.order || 0);
+        const orderDiff = (aMetadata.metadata?.order || 0) - (bMetadata.metadata?.order || 0);
+        console.log(`  📊 Comparing ${a.id.slice(-4)} (order: ${aMetadata.metadata?.order}) vs ${b.id.slice(-4)} (order: ${bMetadata.metadata?.order}) = ${orderDiff}`);
+        return orderDiff;
       }
       
       // If only one has order metadata, prioritize it
@@ -574,6 +577,11 @@ useEffect(() => {
       // If neither has order metadata, sort by creation time (newest first)
       return new Date(b.createdAt) - new Date(a.createdAt);
     });
+    
+    console.log(`✅ Final order for ${stage}:`, finalColumns[stage].map(job => ({ 
+      id: job.id.slice(-4), 
+      order: jobMetadata[job.id]?.metadata?.order 
+    })));
   });
 
   // Apply deduplication safeguard before setting columns
