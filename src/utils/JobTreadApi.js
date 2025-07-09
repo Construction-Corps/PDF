@@ -4,6 +4,9 @@ const PROXY_ENDPOINT = "https://ccbe.onrender.com/jobtread-proxy/";
 const GRANT_KEY = "22SkCV5JXCtY6eKk5w2ZWBsyhpBBrr6Lea";
 const ORGANIZATION_ID = "22NwWhUAf6VB";
 
+// Extra JobTread data API base URL
+const EXTRA_JT_DATA_API_BASE_URL = "https://ccbe.onrender.com/api";
+
 // Generate a 5-letter key from custom query to identify API calls
 const generateQueryKey = (customQuery) => {
   // Convert query to string and generate a simple hash
@@ -125,6 +128,82 @@ const _callJobTreadApi = async (customQuery, options = {}) => {
   }
 };
 
+// Private shared function to handle Extra JobTread Data API calls
+const _callExtraJTDataApi = async (endpoint, options = {}) => {
+  const { 
+    method = "GET", 
+    data = undefined, 
+    errorPrefix = "communicating with",
+    showSuccessMessage = false,
+    successMessage = "Operation completed successfully" 
+  } = options;
+
+  // Get auth token
+  const authToken = typeof localStorage !== 'undefined' ? localStorage.getItem('authToken') : null;
+
+  const url = endpoint.startsWith('http') ? endpoint : `${EXTRA_JT_DATA_API_BASE_URL}${endpoint}`;
+  
+  const headers = { 
+    "Content-Type": "application/json" 
+  };
+  
+  // Add auth token if available
+  if (authToken) {
+    headers["Authorization"] = `Token ${authToken}`;
+  }
+  
+  const fetchOptions = {
+    method: method,
+    headers: headers,
+  };
+
+  if (data) {
+    fetchOptions.body = JSON.stringify(data);
+  }
+
+  try {
+    const response = await fetch(url, fetchOptions);
+    
+    // Handle unauthorized response
+    if (response.status === 401) {
+      if (typeof localStorage !== 'undefined') {
+        localStorage.removeItem('authToken');
+        localStorage.removeItem('user');
+      }
+      
+      if (typeof window !== 'undefined') {
+        toast.error("Your session has expired. Please log in again.");
+        window.location.href = '/login';
+      }
+      throw new Error("Unauthorized - Please log in");
+    }
+    
+    // Handle cases where response might not have a body
+    const responseData = await response.text();
+    const jsonResponse = responseData ? JSON.parse(responseData) : {};
+
+    if (!response.ok) {
+      const errorMessage = jsonResponse.message || jsonResponse.detail || jsonResponse.error || `HTTP error! status: ${response.status}`;
+      throw new Error(errorMessage);
+    }
+    
+    if (jsonResponse.error) {
+      throw new Error(jsonResponse.error);
+    }
+    
+    if (showSuccessMessage) {
+      toast.success(successMessage);
+    }
+    
+    return jsonResponse;
+  } catch (error) {
+    console.error(`Extra JT Data API Error (${method} ${endpoint}):`, error);
+    const errorMessage = error.message;
+    toast.error(`Problem ${errorPrefix} extra JobTread data: ${errorMessage}`);
+    throw error;
+  }
+};
+
 export const fetchJobTread = async (customQuery) => {
   return _callJobTreadApi(customQuery);
 };
@@ -136,5 +215,47 @@ export const updateJobTread = async (customQuery, updateData, method = "POST") =
     errorPrefix: "updating data in",
     showSuccessMessage: true,
     successMessage: "Data updated successfully in JobTread"
+  });
+};
+
+// --- Extra JobTread Data API Functions ---
+
+// Save individual job metadata
+export const saveJobMetadata = async (jobId, fieldId, stage, metadata) => {
+  return _callExtraJTDataApi('/extra-jt-data/job-kanban-metadata', {
+    method: "POST",
+    data: { jobId, fieldId, stage, metadata },
+    errorPrefix: "saving job metadata to",
+    showSuccessMessage: false // Don't show success message for individual saves
+  });
+};
+
+// Fetch job metadata for multiple jobs or all jobs for a field
+export const fetchJobMetadata = async (fieldId, jobIds = null, useAllEndpoint = false) => {
+  let endpoint;
+  if (useAllEndpoint) {
+    // Use the dedicated /all endpoint
+    endpoint = `/extra-jt-data/job-kanban-metadata/all?fieldId=${encodeURIComponent(fieldId)}`;
+  } else if (!jobIds) {
+    // No jobIds param: get all metadata for this fieldId
+    endpoint = `/extra-jt-data/job-kanban-metadata?fieldId=${encodeURIComponent(fieldId)}`;
+  } else {
+    // Fetch specific job IDs
+    const jobIdsParam = Array.isArray(jobIds) ? jobIds.join(',') : jobIds;
+    endpoint = `/extra-jt-data/job-kanban-metadata?fieldId=${encodeURIComponent(fieldId)}&jobIds=${encodeURIComponent(jobIdsParam)}`;
+  }
+  return _callExtraJTDataApi(endpoint, {
+    errorPrefix: "fetching job metadata from"
+  });
+};
+
+// Batch update job metadata (used after drag-and-drop)
+export const batchUpdateJobMetadata = async (jobs) => {
+  return _callExtraJTDataApi('/extra-jt-data/job-kanban-metadata/batch', {
+    method: "POST",
+    data: { jobs },
+    errorPrefix: "batch updating job metadata in",
+    showSuccessMessage: true,
+    successMessage: "Job order updated successfully"
   });
 };

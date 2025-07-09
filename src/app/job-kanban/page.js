@@ -3,7 +3,7 @@
 import { Layout, Card, Button, Spin, message, Checkbox, Input } from 'antd'
 import { useState, useEffect, useCallback } from 'react'
 import styled from 'styled-components'
-import { fetchJobTread, updateJobTread } from '../../utils/JobTreadApi'
+import { fetchJobTread, updateJobTread, saveJobMetadata, fetchJobMetadata, batchUpdateJobMetadata } from '../../utils/JobTreadApi'
 import JobTile from '../components/JobTile'
 import JobStatusFilter from '../components/JobStatusFilter'
 import { DragDropContext, Droppable, Draggable } from 'react-beautiful-dnd'
@@ -138,6 +138,7 @@ export default function JobKanbanPage() {
   const [columnColors, setColumnColors] = useState({});
   const [newTaskInputs, setNewTaskInputs] = useState({});
   const [editingTask, setEditingTask] = useState({ id: null, value: '' });
+  const [jobMetadata, setJobMetadata] = useState({});
   const { user, userPermissions, loading: authLoading } = useAuth();
 
   // Handle filters change from JobStatusFilter
@@ -336,6 +337,45 @@ export default function JobKanbanPage() {
       });
       
       setJobs(deduplicatedJobs);
+
+      // Fetch ALL job metadata for ordering (new robust mode)
+      try {
+        const response = await fetchJobMetadata(fieldId); // no jobIds param
+        // Transform the response into a lookup object
+        let allMetadata = {};
+        if (response && response.jobs && Array.isArray(response.jobs)) {
+          response.jobs.forEach(jobData => {
+            if (jobData.jobId && jobData.metadata) {
+              allMetadata[jobData.jobId] = {
+                stage: jobData.stage,
+                order: jobData.metadata.order,
+                updatedAt: jobData.metadata.updatedAt
+              };
+            }
+          });
+        } else if (response && typeof response === 'object') {
+          allMetadata = response;
+        }
+        // Filter to only visible jobs
+        const visibleJobIds = deduplicatedJobs.map(job => job.id);
+        const visibleMetadata = {};
+        visibleJobIds.forEach(id => {
+          if (allMetadata[id]) visibleMetadata[id] = allMetadata[id];
+        });
+        
+        // Debug log to verify order data
+        console.log('Job metadata loaded:', Object.entries(visibleMetadata).map(([jobId, meta]) => ({
+          jobId: jobId.slice(-4), // Last 4 chars for easier reading
+          stage: meta.stage,
+          order: meta.metadata?.order,
+          name: meta.name || 'No name'
+        })).sort((a, b) => `${a.stage}-${a.order}`.localeCompare(`${b.stage}-${b.order}`)));
+        
+        setJobMetadata(visibleMetadata);
+      } catch (error) {
+        console.error("Error fetching job metadata:", error);
+        setJobMetadata({});
+      }
     }
   } catch (error) {
     console.error("Error fetching jobs:", error);
@@ -513,10 +553,31 @@ useEffect(() => {
     finalColumns = newColumns;
   }
 
+  // Apply saved order to each column
+  Object.entries(finalColumns).forEach(([stage, jobs]) => {
+    // Sort jobs by their saved order, fallback to creation time for jobs without order
+    finalColumns[stage] = jobs.sort((a, b) => {
+      const aMetadata = jobMetadata[a.id];
+      const bMetadata = jobMetadata[b.id];
+      
+      // If both have order metadata for this stage, use it
+      if (aMetadata?.stage === stage && bMetadata?.stage === stage) {
+        return (aMetadata.metadata?.order || 0) - (bMetadata.metadata?.order || 0);
+      }
+      
+      // If only one has order metadata, prioritize it
+      if (aMetadata?.stage === stage) return -1;
+      if (bMetadata?.stage === stage) return 1;
+      
+      // If neither has order metadata, sort by creation time (newest first)
+      return new Date(b.createdAt) - new Date(a.createdAt);
+    });
+  });
+
   // Apply deduplication safeguard before setting columns
   const deduplicatedFinalColumns = deduplicateColumns(finalColumns);
   setColumns(deduplicatedFinalColumns);
-}, [stageOptions, jobs, fieldId, filterParams, deduplicateColumns]);
+}, [stageOptions, jobs, fieldId, filterParams, deduplicateColumns, jobMetadata]);
 
 // Fetch jobs when filters change
 useEffect(() => {
@@ -566,6 +627,7 @@ const onDragEnd = async (result) => {
 
   // Store original state for rollback
   const originalColumns = { ...columns };
+  const originalJobMetadata = { ...jobMetadata };
 
   try {
     // Find the job being moved
@@ -596,8 +658,41 @@ const onDragEnd = async (result) => {
     const deduplicatedColumns = deduplicateColumns(updatedColumns);
     setColumns(deduplicatedColumns);
 
-    // Update job stage in API
+    // Update job stage in JobTread API
     await updateJobStage(draggableId, destination.droppableId);
+
+    // Save job metadata for ordering
+    const jobsToUpdate = [];
+    const currentTimestamp = new Date().toISOString();
+    
+    // Update metadata for ALL jobs in ALL columns to preserve existing order data
+    Object.entries(deduplicatedColumns).forEach(([stage, jobs]) => {
+      jobs.forEach((job, index) => {
+        jobsToUpdate.push({
+          jobId: job.id,
+          fieldId: fieldId,
+          stage: stage,
+          metadata: {
+            order: index,
+            updatedAt: currentTimestamp
+          }
+        });
+      });
+    });
+
+    // Batch update job metadata
+    await batchUpdateJobMetadata(jobsToUpdate);
+
+    // Update local metadata state
+    const updatedMetadata = { ...jobMetadata };
+    jobsToUpdate.forEach(({ jobId, stage, metadata }) => {
+      updatedMetadata[jobId] = {
+        stage: stage,
+        order: metadata.order,
+        updatedAt: metadata.updatedAt
+      };
+    });
+    setJobMetadata(updatedMetadata);
 
     // If API update successful (didn't throw), apply final deduplication
     // Double-check for any duplicates after API success
@@ -608,6 +703,7 @@ const onDragEnd = async (result) => {
     console.error("Error in drag and drop:", error);
     // On error, rollback to original state
     setColumns(originalColumns);
+    setJobMetadata(originalJobMetadata);
     message.error("Failed to update job stage");
     
     // Refresh data to ensure consistency
@@ -899,6 +995,8 @@ return (
                                       opacity: snapshot.isDragging ? 0.8 : 1
                                     }}
                                   >
+                                    {/* this is here for debugging */}
+                                  {/* {job.id} */}
                                     <JobCardHeader
                                       isExpanded={isExpanded}
                                       onClick={(e) => {
