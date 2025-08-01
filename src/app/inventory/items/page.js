@@ -2,12 +2,13 @@
 
 import React, { useState, useEffect } from 'react';
 import { Button, Space, Modal, Form, Input, Select, message, InputNumber, Divider, TreeSelect } from 'antd';
-import { PlusOutlined, EditOutlined, DeleteOutlined, QrcodeOutlined } from '@ant-design/icons';
+import { PlusOutlined, EditOutlined, DeleteOutlined, QrcodeOutlined, ShoppingCartOutlined } from '@ant-design/icons';
 import { fetchInventory, createInventory, updateInventory, deleteInventory, fetchCategoryTree, generateQRCode } from '../../../utils/InventoryApi';
 import ProtectedRoute from '../../../components/ProtectedRoute';
 import QRCodeModal from '../../../components/QRCodeModal';
 import ItemEditModal from '../../../components/ItemEditModal';
 import InventoryTable from '../../../components/InventoryTable';
+import ManualCheckoutModal from '../../../components/ManualCheckoutModal';
 import { generatePrintSheet } from '../../../utils/printUtils';
 
 const { Option } = Select;
@@ -29,6 +30,7 @@ const ItemsPage = () => {
   const [printForm] = Form.useForm();
   const [categorySearchValue, setCategorySearchValue] = useState('');
   const [locationSearchValue, setLocationSearchValue] = useState('');
+  const [isCheckoutModalVisible, setIsCheckoutModalVisible] = useState(false);
 
   const [dataManager, setDataManager] = useState(null);
 
@@ -622,10 +624,17 @@ const ItemsPage = () => {
     {
       title: 'Action',
       key: 'action',
-      width: 150,
+      width: 200,
       render: (_, record) => (
         <Space size="middle">
           <Button icon={<EditOutlined />} onClick={() => showEditModal(record)}/>
+          <Button 
+            icon={<ShoppingCartOutlined />} 
+            onClick={() => {
+              setSelectedRowKeys([record.id]);
+              setIsCheckoutModalVisible(true);
+            }}
+          />
           <Button style={{ marginRight: 0 }} icon={<DeleteOutlined />} danger onClick={() => handleDelete(record.id)}/>
         </Space>
       ),
@@ -681,6 +690,15 @@ const ItemsPage = () => {
       onClick={showAddModal}
     >
       Add Item
+    </Button>,
+    <Button
+      key="checkout"
+      type="primary"
+      icon={<ShoppingCartOutlined />}
+      onClick={() => setIsCheckoutModalVisible(true)}
+      disabled={!selectedRowKeys.length}
+    >
+      Manual Checkout ({selectedRowKeys.length})
     </Button>,
     <Button
       key="print"
@@ -761,6 +779,20 @@ const ItemsPage = () => {
         
         {/* QR Code Modal */}
         <QRCodeModal open={qrModalOpen} onCancel={() => setQrModalOpen(false)} qrCodeValue={selectedQrValue} />
+        
+        {/* Manual Checkout Modal */}
+        <ManualCheckoutModal
+          open={isCheckoutModalVisible}
+          onCancel={() => setIsCheckoutModalVisible(false)}
+          onSuccess={(result) => {
+            // Refresh the table data after successful checkout
+            if (dataManager) {
+              dataManager.refreshData();
+            }
+            setSelectedRowKeys([]);
+          }}
+          preselectedItems={dataManager ? dataManager.data.filter(item => selectedRowKeys.includes(item.id)) : []}
+        />
       </div>
     </ProtectedRoute>
   );

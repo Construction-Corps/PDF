@@ -2,15 +2,17 @@
 
 import React, { useState, useEffect } from 'react';
 import { message, Tag, Button } from 'antd';
-import { ReloadOutlined } from '@ant-design/icons';
+import { ReloadOutlined, ShoppingCartOutlined } from '@ant-design/icons';
 import { fetchInventory, fetchUsers } from '../../../utils/InventoryApi';
 import ProtectedRoute from '../../../components/ProtectedRoute';
 import InventoryTable from '../../../components/InventoryTable';
+import ManualCheckoutModal from '../../../components/ManualCheckoutModal';
 
 const ScanLogsPage = () => {
   const [users, setUsers] = useState([]);
   const [items, setItems] = useState([]);
   const [dataManager, setDataManager] = useState(null);
+  const [isCheckoutModalVisible, setIsCheckoutModalVisible] = useState(false);
 
   useEffect(() => {
     fetchSupportingData();
@@ -192,6 +194,14 @@ const ScanLogsPage = () => {
 
   const additionalActions = [
     <Button
+      key="checkout"
+      type="primary"
+      icon={<ShoppingCartOutlined />}
+      onClick={() => setIsCheckoutModalVisible(true)}
+    >
+      Manual Checkout
+    </Button>,
+    <Button
       key="refresh"
       icon={<ReloadOutlined />}
       onClick={refreshData}
@@ -213,6 +223,18 @@ const ScanLogsPage = () => {
           additionalActions={additionalActions}
           defaultPageSize={25}
           onDataChange={setDataManager}
+        />
+        
+        {/* Manual Checkout Modal */}
+        <ManualCheckoutModal
+          open={isCheckoutModalVisible}
+          onCancel={() => setIsCheckoutModalVisible(false)}
+          onSuccess={(result) => {
+            // Refresh the table data after successful checkout
+            if (dataManager) {
+              dataManager.refreshData();
+            }
+          }}
         />
       </div>
     </ProtectedRoute>

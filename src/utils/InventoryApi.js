@@ -281,4 +281,15 @@ export const generateQRCode = async (itemId) => {
     showSuccessMessage: true,
     successMessage: 'QR code generated and assigned successfully!'
   });
+};
+
+// Manual checkout endpoint
+export const manualCheckout = async (checkoutData) => {
+  return _callInventoryApi('/actions/manual-checkout/', {
+    method: 'POST',
+    data: checkoutData,
+    errorPrefix: 'performing manual checkout',
+    showSuccessMessage: true,
+    successMessage: 'Items checked out successfully!'
+  });
 }; 
