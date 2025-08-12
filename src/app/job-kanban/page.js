@@ -1,6 +1,6 @@
 'use client'
 
-import { Layout, Card, Button, Spin, message, Checkbox, Input } from 'antd'
+import { Layout,  Button, Spin, message, Checkbox, Input } from 'antd'
 import { useState, useEffect, useCallback } from 'react'
 import styled from 'styled-components'
 import { fetchJobTread, updateJobTread, saveJobMetadata, fetchJobMetadata, batchUpdateJobMetadata } from '../../utils/JobTreadApi'
@@ -10,7 +10,7 @@ import { DragDropContext, Droppable, Draggable } from 'react-beautiful-dnd'
 import ThemeSwitch from '../components/ThemeSwitch'
 import { CaretDownOutlined, CaretRightOutlined, ExportOutlined, HolderOutlined } from '@ant-design/icons'
 import { useSearchParams } from 'next/navigation'
-import { isTwoCNChar } from 'antd/es/button'
+// import { isTwoCNChar } from 'antd/es/button'
 import { useAuth } from '../../contexts/AuthContext'
 
 const { Content } = Layout
@@ -165,6 +165,63 @@ export default function JobKanbanPage() {
   // Check if user has "Ext Design" role
   const hasExtDesignRole = user?.profile?.roles?.some(role => role.name === "Ext Design");
   // console.log("[JobKanbanPage] user.profile?.roles", user?.profile?.roles);
+
+  // Determine if we should skip rendering the JobStatusFilter entirely
+  const skipFilter = hasExtDesignRole && fieldId === "22P7Rp2AWjYT";
+
+  // When skipping the filter, load the kanban field options and apply default selections
+  useEffect(() => {
+    if (!skipFilter) return;
+
+    const loadFieldOptionsAndDefaults = async () => {
+      try {
+        const query = {
+          "organization": {
+            "$": { "id": "22NwWhUAf6VB" },
+            "id": {},
+            "customFields": {
+              "nodes": { "id": {}, "name": {}, "options": {} },
+              "$": { "where": { "or": [["id", "=", fieldId]] } }
+            }
+          }
+        };
+
+        const data = await fetchJobTread(query);
+        const fields = data?.organization?.customFields?.nodes || [];
+        const kanbanField = fields.find(f => f.id === fieldId);
+
+        if (kanbanField) {
+          setFieldName(kanbanField.name);
+          setStageOptions(kanbanField.options || []);
+          setColumnColors(generateLaneColors((kanbanField.options || []).length, kanbanField.options || []));
+        }
+
+        // Compute defaults inline (avoid referencing non-hoisted const)
+        const defaults = fieldId === "22P7Rp2AWjYT"
+          ? [
+              { fieldId: "22NwzQcjYUA4", defaults: [ "Design Proposal in Progress 📝",
+                "Design Proposal Sent 📤","Design Sold 💲","In Planning & Design 🎨", "Design Approved by Client👍" ] },
+              { fieldId: "22P7Rp2AWjYT", defaults: ["DEV. TEAM", "IN REVIEW/QC- PABLO"] },
+            ]
+          : null;
+        if (Array.isArray(defaults)) {
+          setFilterParams(prev => {
+            const next = { ...prev };
+            defaults.forEach(d => {
+              if (d && d.fieldId) {
+                next[d.fieldId] = Array.isArray(d.defaults) ? d.defaults : [];
+              }
+            });
+            return next;
+          });
+        }
+      } catch (error) {
+        console.error("Error loading field options when skipping filter:", error);
+      }
+    };
+
+    loadFieldOptionsAndDefaults();
+  }, [skipFilter, fieldId]);
 
   // Utility function to ensure no job appears in multiple columns
   const deduplicateColumns = useCallback((columnsToCheck) => {
@@ -936,7 +993,7 @@ return (
 
       </div>
 
-      {!authLoading && (
+      {!authLoading && !skipFilter && (
         <JobStatusFilter
           onFiltersChange={handleFiltersChange}
           onFieldOptionsLoaded={handleFieldOptionsLoaded}
